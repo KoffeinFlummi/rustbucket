@@ -1,0 +1,17 @@
+[package]
+name = "rustbucket"
+version = "0.1.0"
+authors = ["KoffeinFlummi <koffeinflummi@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+log = "0.4"
+env_logger = "0.7"
+serde = { version = "1", features = ["derive"] }
+docopt = { version = "1" }
+colored = "2"
+ctrlc = { version = "3.0", features = ["termination"] }
+nix = "0.18"
+gpio-cdev = "0.4"
+serial = { git = "https://github.com/KoffeinFlummi/serial-rs", branch="arbitrary-baud-rates" }
+socketcan = "1.7"

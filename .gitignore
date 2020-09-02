@@ -1,0 +1,10 @@
+/target
+*.gbr
+*.gbrjob
+*.drl
+*.ps
+*-bak
+*-cache.lib
+_autosave*
+fp-info-cache
+*.pdf
