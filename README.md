@@ -6,8 +6,8 @@ Read your car's DTCs (Diagnostic Trouble Codes) via the OBD2 connector with a Be
 This was developed on/for the BeagleBone Blue, but the K & L line protocols should be just as usable on a BeagleBone Black. As far as I know, accessing the CAN bus on the Black requires the addition of a CAN transceiver.
 
 <p align="center">
-    <a href="https://github.com/KoffeinFlummi/rustbucket/blob/master/doc/example_can.png?raw=true">
-        <img width=600 src="https://github.com/KoffeinFlummi/rustbucket/blob/master/doc/example_can.png?raw=true" />
+    <a href="https://github.com/KoffeinFlummi/rustbucket/blob/master/doc/golf4.jpg?raw=true">
+        <img src="https://github.com/KoffeinFlummi/rustbucket/blob/master/doc/golf4.jpg?raw=true" />
     </a>
 </p>
 
