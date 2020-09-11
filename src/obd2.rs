@@ -35,4 +35,14 @@ impl<T: Obd2Protocol> Diagnose for T {
         self.obd_query(0x04, &[])?;
         Ok(())
     }
+
+    fn read_data(&mut self, pid: u8, freeze_frame: bool) -> Result<Vec<u8>, Error> {
+        let service = if freeze_frame { 0x02 } else { 0x01 };
+        self.obd_query(service, &[pid])
+    }
+
+    fn read_data_formatted(&mut self, pid: u8, freeze_frame: bool) -> Result<String, Error> {
+        // TODO
+        Ok(format!("{:02x?}", self.read_data(pid, freeze_frame)?))
+    }
 }

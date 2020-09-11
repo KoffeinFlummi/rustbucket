@@ -16,6 +16,16 @@ pub trait Diagnose {
      * Instruct ECU to clear Diagnostic Trouble Codes.
      */
     fn clear_dtcs(&mut self) -> Result<(), Error>;
+
+    /**
+     * Read data, either current or from freeze frame.
+     */
+    fn read_data(&mut self, pid: u8, freeze_frame: bool) -> Result<Vec<u8>, Error>;
+
+    /**
+     * Read data, formatted as string with units if possible.
+     */
+    fn read_data_formatted(&mut self, pid: u8, freeze_frame: bool) -> Result<String, Error>;
 }
 
 /**

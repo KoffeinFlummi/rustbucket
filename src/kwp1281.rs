@@ -22,6 +22,8 @@ enum Kwp1281BlockType {
     Quit,
     GetDtcs,
     Ack,
+    ReadData,
+    DataReply,
     Ascii,
     Other(u8),
 }
@@ -33,6 +35,8 @@ impl From<u8> for Kwp1281BlockType {
             0x06 => Self::Quit,
             0x07 => Self::GetDtcs,
             0x09 => Self::Ack,
+            0x29 => Self::ReadData,
+            0xe7 => Self::DataReply,
             0xf6 => Self::Ascii,
             x => Self::Other(x),
         }
@@ -46,6 +50,8 @@ impl Into<u8> for Kwp1281BlockType {
             Self::Quit => 0x06,
             Self::GetDtcs => 0x07,
             Self::Ack => 0x09,
+            Self::ReadData => 0x29,
+            Self::DataReply => 0xe7,
             Self::Ascii => 0xf6,
             Self::Other(x) => x,
         }
@@ -321,12 +327,116 @@ impl Diagnose for Kwp1281 {
             data: Vec::new(),
         })?;
 
-        let block = self.read_block()?;
+        let response = self.read_block()?;
 
-        if block.block_type == Kwp1281BlockType::Ack {
+        if response.block_type == Kwp1281BlockType::Ack {
             Ok(())
         } else {
             Err(Error::new("Unexpected response to ClearDtcs command."))
         }
+    }
+
+    fn read_data(&mut self, pid: u8, freeze_frame: bool) -> Result<Vec<u8>, Error> {
+        if freeze_frame {
+            return Err(Error::new("Freeze frames are not supported by KWP1281."));
+        }
+
+        self.write_block(Kwp1281Block {
+            block_type: Kwp1281BlockType::ReadData,
+            data: vec![pid]
+        })?;
+
+        let response = self.read_block()?;
+
+        if response.block_type == Kwp1281BlockType::DataReply {
+            Ok(response.data)
+        } else {
+            Err(Error::new("Unexpected response to ReadData command."))
+        }
+    }
+
+    fn read_data_formatted(&mut self, pid: u8, freeze_frame: bool) -> Result<String, Error> {
+        let data = self.read_data(pid, freeze_frame)?;
+
+        // Special case: all the data is one string
+        if data[0] == 0x3f {
+            return Ok(String::from_utf8_lossy(&data[1..]).to_string())
+        }
+
+        // Otherwise, all data contains 4 groups of 1 format identifier,
+        // and 2 data bytes. Some may be empty (0x25, 0x00, 0x00).
+        let mut output = String::from("");
+        for chunk in data.chunks(3) {
+            if chunk == [0x25, 0x00, 0x00] {
+                continue;
+            }
+
+            let format = chunk[0];
+            let a = chunk[1];
+            let b = chunk[2];
+
+            output.push_str(&match format {
+                0x01 => {
+                    format!("{:6.1} rpm ", a as f32 * b as f32 * 0.2)
+                },
+                0x02 => {
+                    format!("{:7.3} % ", a as f32 * b as f32 * 0.002)
+                },
+                0x03 => {
+                    format!("{:7.3} deg ", a as f32 * b as f32 * 0.002)
+                },
+                0x05 => {
+                    format!("{:5.1} C ", a as f32 * (b as f32 - 100.0) * 0.1)
+                },
+                0x06 | 0x15 => {
+                    format!("{:6.3} V ", a as f32 * b as f32 * 0.001)
+                },
+                0x07 => {
+                    format!("{:6.2} km/h ", a as f32 * b as f32 * 0.01)
+                },
+                0x0f => {
+                    format!("{:7.2} ms ", a as f32 * b as f32 * 0.01)
+                },
+                0x12 => {
+                    format!("{:7.2} mbar ", a as f32 * b as f32 * 0.04)
+                },
+                0x14 => {
+                    format!("{:8.3} % ", a as f32 * (b as f32 - 128.0) / 128.0)
+                },
+                0x19 => {
+                    format!("{:6.3} g/s ", (a as f32 / 128.0) + (b as f32 * 1.1421))
+                },
+                0x21 => {
+                    format!("{:7.3} % ", if a == 0 { b as f32 * 100.0 } else { (b as f32 * 100.0) / a as f32 })
+                },
+                0x24 => {
+                    format!("{:6} km ", (((a as u32) << 8) + b as u32) * 10)
+                },
+                0x2f => {
+                    format!("{:4} ms ", (b as i32 - 128) * a as i32)
+                },
+                0x31 => {
+                    format!("{:7.2} mg/h ", (b as f32 / 4.0) * a as f32 * 0.1)
+                },
+                0x34 => {
+                    format!("{:7.2} Nm ", b as f32 * 0.002 * a as f32 - a as f32)
+                },
+                0x36 => {
+                    format!("{:5} ", ((a as u16) << 8) + b as u16)
+                },
+                0x42 => {
+                    format!("{:6.3} V ", a as f32 * b as f32 / 511.12)
+                }
+                _ => {
+                    format!("{:02x?} ", chunk)
+                }
+            })
+        }
+
+        if output == "" {
+            output = "No data".to_string()
+        }
+
+        Ok(output.trim_end().to_string())
     }
 }
