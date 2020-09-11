@@ -1,7 +1,7 @@
 rustbucket
 ==========
 
-Read your car's DTCs (Diagnostic Trouble Codes) via the OBD2 connector with a BeagleBone Blue and Rust (and maybe some MOSFETs). This was inspired by [Marcelo Sacchetin's post about using the BeagleBone Blue's integrated CAN bus transceiver](https://medium.com/bugbountywriteup/car-hacking-with-python-part-1-data-exfiltration-gps-and-obdii-can-bus-69bc6b101fd1). If you want to read the diagnostics for older vehicles, things are a bit more complicated than that. For older VWs for instance, you will need to talk to the vehicle's K line using the KWP1281 protocol. This requires additional hardware to convert the BeagleBone's 3.3V logic level to 12V.
+Access your car's diagnostics (read Diagnostic Trouble Codes, clear DTCs, and read other diagnostic data) via the OBD2 connector with a BeagleBone Blue and Rust (and maybe some MOSFETs). This was inspired by [Marcelo Sacchetin's post about using the BeagleBone Blue's integrated CAN bus transceiver](https://medium.com/bugbountywriteup/car-hacking-with-python-part-1-data-exfiltration-gps-and-obdii-can-bus-69bc6b101fd1). If you want to read the diagnostics for older vehicles, things are a bit more complicated than that. For older VWs for instance, you will need to talk to the vehicle's K line using the KWP1281 protocol. This requires additional hardware to convert the BeagleBone's 3.3V logic level to 12V.
 
 This was developed on/for the BeagleBone Blue, but the K & L line protocols should be just as usable on a BeagleBone Black. As far as I know, accessing the CAN bus on the Black requires the addition of a CAN transceiver.
 
