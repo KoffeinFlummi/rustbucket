@@ -32,7 +32,7 @@ Usage:
     rustbucket <protocol> read-dtcs [-v] [--bitrate=<bps>] [--pending]
     rustbucket <protocol> clear-dtcs [-v] [--bitrate=<bps>]
     rustbucket <protocol> read-data <pid> [-v] [-t] [--freeze-frame]
-    rustbucket <protocol> dump-data [-v] [--freeze-frame]
+    rustbucket <protocol> dump-data [-v] [-r] [--freeze-frame]
     rustbucket <protocol> simulator [-v] [--bitrate=<bps>]
     rustbucket test-hardware (tx|rx) [-v] [--bitrate=<bps>]
     rustbucket (-h | --help)
@@ -52,7 +52,8 @@ Commands:
                             PID/group (either decimal or hex with 0x prefix).
                             Freeze frame not supported on KWP1281.
     dump-data           Enumerate through all data PIDs/groups, and dump it all
-                            in hex. Freeze frame not supported on KWP1281.
+                            either formatted or in hex.
+                            Freeze frame not supported on KWP1281.
     simulator           Run a car simulater for testing.
     test-hardware       Test K line logic level conversion hardware by either
                             transmitting or receiving serial data continuously.
@@ -65,6 +66,7 @@ Options:
                             will be determined automagically by default.
                             For the CAN bus, this defaults to 500,000.
     -t --tail           Keep requerying data.
+    -r --raw            Dump data in raw hex.
     -v --verbose        Show more output.
     -h --help           Show usage information.
     --version           Show version.
@@ -97,6 +99,7 @@ struct Args {
     flag_pending: bool,
     flag_freeze_frame: bool,
     flag_tail: bool,
+    flag_raw: bool,
 }
 
 fn init_protocol(args: &Args) -> Result<Box<dyn Diagnose>, Error> {
@@ -224,9 +227,16 @@ fn cmd_dump_data(args: Args) -> Result<(), Error> {
     let mut protocol = init_protocol(&args)?;
 
     for i in 0x00..=0xff {
-        match protocol.read_data(i, args.flag_freeze_frame) {
-            Ok(data) => println!("{:02x} {:02x?}", i, data),
-            Err(e) => error!("Failed to read PID {:02}: {}", i, e),
+        if args.flag_raw {
+            match protocol.read_data(i, args.flag_freeze_frame) {
+                Ok(data) => println!("{:02x} {:02x?}", i, data),
+                Err(e) => error!("Failed to read PID {:02}: {}", i, e),
+            }
+        } else {
+            match protocol.read_data_formatted(i, args.flag_freeze_frame) {
+                Ok(s) => println!("{:02x} {:?}", i, s),
+                Err(e) => error!("Failed to read PID {:02}: {}", i, e),
+            }
         }
     }
 
