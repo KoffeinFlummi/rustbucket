@@ -30,8 +30,8 @@ impl Into<String> for PinMode {
 }
 
 /**
- * Wait busily until the given number of microseconds have elapsed since
- * the given reference. Used instead of sleeping for some of the software
+ * Busily wait until the given number of microseconds has elapsed since the
+ * given reference. Used instead of sleeping for some of the software
  * UART stuff.
  */
 pub fn busy_wait<T: Into<u128> + Copy>(reference: SystemTime, elapsed_micros: T) {

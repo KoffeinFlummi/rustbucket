@@ -21,7 +21,7 @@ impl CanBus {
     /**
      * Initialize the CAN protocol on the `can0` interface. This method expects
      * the `can0` network interface to not currently exist, and brings it up via
-     * the `ip` command with the given bit rate.
+     * the `ip` command with the given bit rate, or 500kpbs if none is given.
      *
      * The [Drop] trait is implemented to ensure the network interface is
      * brought down again on termination.
