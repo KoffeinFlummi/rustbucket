@@ -76,6 +76,7 @@ struct Kwp1281Block {
 pub struct Kwp1281 {
     kline: KLine,
     block_counter: u8,
+    /// Identifying data returned by the ECU after initialization
     pub ecu_data: Vec<u8>,
 }
 

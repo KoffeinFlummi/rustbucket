@@ -1,11 +1,15 @@
 //! General error type
 
+/// General error type
 #[derive(Debug, Default)]
 pub struct Error {
     msg: String,
 }
 
 impl Error {
+    /**
+     * Creates new error with the given message.
+     */
     pub fn new<T: Into<String>>(m: T) -> Self {
         Self { msg: m.into() }
     }

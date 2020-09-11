@@ -20,12 +20,26 @@ const INIT_BAUD_RATE: u64 = 5;
 /// Delay before writing byte to K line
 const WRITE_DELAY_MICROS: u64 = 5000;
 
+/// General physical layer implementation for various K line protocols.
 pub struct KLine {
+    /// UART port used for communication after initialization
     pub port: serial::unix::TTYPort,
+    /// Given or determined baud rate
     pub baud_rate: u64,
 }
 
 impl KLine {
+    /**
+     * Initialize the K line on the UART1 bus by addressing the given ECU.
+     *
+     * If the baud rate is not given, it will be determined automatically from
+     * the sync byte. Because of the extremely low baud rate used for the
+     * initialization, the initialization will have to be done in GPIO mode.
+     *
+     * Fast init as used by KWP2000 is not implemented at the moment, and
+     * neither is the initialization on the L line in parallel, as is
+     * used optionally by ISO 9141, and KWP2000.
+     */
     pub fn init(baud_rate: Option<u64>, init_address: u8) -> Result<Self, Error> {
         // Initialize communication manually, in GPIO mode
         let (tx, rx) = Self::initialize_gpio()?;

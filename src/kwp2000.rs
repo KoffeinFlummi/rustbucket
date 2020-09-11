@@ -1,4 +1,4 @@
-//! Protocol implementation for KWP2000
+//! Protocol implementation for KWP2000 / ISO 14230
 
 use std::num::Wrapping;
 
@@ -17,6 +17,15 @@ pub struct Kwp2000 {
 }
 
 impl Kwp2000 {
+    /**
+     * Initialize the KWP2000 protocol via the UART1 bus.
+     *
+     * It will be attempted to deduce the baud rate automatically using a sync
+     * byte if no specific baud rate is given.
+     *
+     * Not implemented at the moment is fast init, and neither is
+     * initialization of the L line.
+     */
     pub fn init(baud_rate: Option<u64>) -> Result<Self, Error> {
         // TODO: fast init
         // TODO: write address to L line as well
@@ -50,6 +59,9 @@ impl Kwp2000 {
         Ok(kwp)
     }
 
+    /**
+     * Write a data block to the K line via KWP2000.
+     */
     fn write_block(&mut self, data: &[u8]) -> Result<(), Error> {
         let mut msg: Vec<u8> = vec![0x80 + data.len() as u8, 0x10, 0xf1];
         msg.extend(data);
@@ -66,6 +78,9 @@ impl Kwp2000 {
         Ok(())
     }
 
+    /**
+     * Read a data block from the K line via KWP2000.
+     */
     fn read_block(&mut self) -> Result<Vec<u8>, Error> {
         let header = self.kline.read_byte(false)?;
 

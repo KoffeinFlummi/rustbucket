@@ -3,6 +3,7 @@
 use crate::dtc::*;
 use crate::error::*;
 
+/// Trait for abstracting general OBD2 functionality common to all protocols.
 pub trait Obd2Protocol {
     /**
      * Sends an OBD query over the bus and returns the response, abstracting

@@ -11,11 +11,21 @@ use crate::error::*;
 use crate::misc::*;
 use crate::obd2::*;
 
+/// Protocol for talking to the vehicle via the CAN bus.
 pub struct CanBus {
+    /// CAN bus socket
     pub socket: socketcan::CANSocket,
 }
 
 impl CanBus {
+    /**
+     * Initialize the CAN protocol on the `can0` interface. This method expects
+     * the `can0` network interface to not currently exist, and brings it up via
+     * the `ip` command with the given bit rate.
+     *
+     * The [Drop] trait is implemented to ensure the network interface is
+     * brought down again on termination.
+     */
     pub fn init(bit_rate: Option<u64>) -> Result<Self, Error> {
         run_cmd_as_root(format!(
             "ip link set can0 up type can bitrate {}",
@@ -29,6 +39,9 @@ impl CanBus {
         Ok(Self { socket })
     }
 
+    /**
+     * Run a crude car simulator using the given bit rate.
+     */
     pub fn run_simulator(bit_rate: u64) -> Result<(), Error> {
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();

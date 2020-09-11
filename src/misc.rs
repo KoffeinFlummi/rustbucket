@@ -12,8 +12,11 @@ use nix;
 
 use crate::error::*;
 
+/// Pin multiplexer mode
 pub enum PinMode {
+    /// Set pin to GPIO mode
     Gpio,
+    /// Set pin to UART mode
     Uart,
 }
 
@@ -26,10 +29,18 @@ impl Into<String> for PinMode {
     }
 }
 
+/**
+ * Wait busily until the given number of microseconds have elapsed since
+ * the given reference. Used instead of sleeping for some of the software
+ * UART stuff.
+ */
 pub fn busy_wait<T: Into<u128> + Copy>(reference: SystemTime, elapsed_micros: T) {
     while reference.elapsed().unwrap().as_micros() < elapsed_micros.into() {}
 }
 
+/**
+ * Busily wait for a rising or falling edge on the given GPIO pin/line.
+ */
 pub fn busy_wait_until<T: Into<u128> + Copy>(
     rx: &LineHandle,
     value: u8,
@@ -45,6 +56,9 @@ pub fn busy_wait_until<T: Into<u128> + Copy>(
     Err(Error::new("Timed out waiting for edge."))
 }
 
+/**
+ * Set the given pin's pin multiplexer mode.
+ */
 pub fn set_pin_mode(chip: u32, pin: u32, mode: PinMode) -> Result<(), Error> {
     let path = format!(
         "/sys/devices/platform/ocp/ocp:P{}_{}_pinmux/state",
@@ -56,6 +70,9 @@ pub fn set_pin_mode(chip: u32, pin: u32, mode: PinMode) -> Result<(), Error> {
     Ok(())
 }
 
+/**
+ * Ask user for confirmation with the given message.
+ */
 pub fn confirm(msg: String) -> Result<bool, Error> {
     let mut stdout = std::io::stdout();
     print!("{} ({}/{}): ", msg, "y".bold().green(), "N".bold().red());
@@ -66,6 +83,9 @@ pub fn confirm(msg: String) -> Result<bool, Error> {
     Ok(input.to_lowercase() == "y\n")
 }
 
+/**
+ * Run the given command as root, by using sudo if necessary.
+ */
 pub fn run_cmd_as_root<T: Into<String>>(cmd: T) -> Result<(), Error> {
     let mut cmd = cmd.into();
     if !nix::unistd::getuid().is_root() {

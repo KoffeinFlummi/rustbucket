@@ -3,8 +3,8 @@
 use crate::error::Error;
 
 /**
- * Trait for abstracting some of the OBD2 functionality from the specific
- * protocol in use.
+ * Trait for abstracting some of the general diagnosis functionality from the
+ * specific protocol in use.
  */
 pub trait Diagnose {
     /**
@@ -18,7 +18,8 @@ pub trait Diagnose {
     fn clear_dtcs(&mut self) -> Result<(), Error>;
 
     /**
-     * Read data, either current or from freeze frame.
+     * Read data, either current or from freeze frame. Freeze frames are an
+     * OBD2 feature and not supported on KWP1281.
      */
     fn read_data(&mut self, pid: u8, freeze_frame: bool) -> Result<Vec<u8>, Error>;
 
@@ -34,10 +35,15 @@ pub trait Diagnose {
  * This can be either a proper OBD2 DTC, which are standardized, or an OEM
  * fault code as returned by the KWP1281 protocol used by VAG, even though
  * those are technically not DTCs.
+ *
+ * The [std::fmt::Display] trait displays the OBD2 codes in their well known
+ * form with a leading category letter, such as P0171.
  */
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DiagnosticTroubleCode {
+    /// OEM (VAG) code, with a code and a third byte providing auxiliary info
     Oem(u16, u8),
+    /// Standardized OBD2 code
     Obd(u16),
 }
 
