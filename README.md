@@ -49,7 +49,7 @@ While I don't have access to any vehicles that use ISO 9141 or KWP2000, these sh
 
 # Compiling & Usage
 
-You can compile this directly on the BeagleBone, but the compilation times can be annoying, so the project is set up for cross-compilation. You will have to add the `armv7-unknown-linux-gnueabihf` target using `rustup`:
+You can compile this directly on the BeagleBone, but the compilation times can be annoying, so the project is set up for cross-compilation. You will have to add the `armv7-unknown-linux-gnueabihf` target using `rustup` (You'll also need a version of GCC compiled for `arm-linux-gnueabihf` for linking. Consult your OS' package manager.):
 
 ```
 $ rustup target add armv7-unknown-linux-gnueabihf
