@@ -344,7 +344,7 @@ impl Diagnose for Kwp1281 {
 
         self.write_block(Kwp1281Block {
             block_type: Kwp1281BlockType::ReadData,
-            data: vec![pid]
+            data: vec![pid],
         })?;
 
         let response = self.read_block()?;
@@ -361,7 +361,7 @@ impl Diagnose for Kwp1281 {
 
         // Special case: all the data is one string
         if data[0] == 0x3f {
-            return Ok(String::from_utf8_lossy(&data[1..]).to_string())
+            return Ok(String::from_utf8_lossy(&data[1..]).to_string());
         }
 
         // Otherwise, all data contains 4 groups of 1 format identifier,
@@ -377,60 +377,31 @@ impl Diagnose for Kwp1281 {
             let b = chunk[2];
 
             output.push_str(&match format {
-                0x01 => {
-                    format!("{:6.1} rpm ", a as f32 * b as f32 * 0.2)
-                },
-                0x02 => {
-                    format!("{:7.3} % ", a as f32 * b as f32 * 0.002)
-                },
-                0x03 => {
-                    format!("{:7.3} deg ", a as f32 * b as f32 * 0.002)
-                },
-                0x05 => {
-                    format!("{:5.1} C ", a as f32 * (b as f32 - 100.0) * 0.1)
-                },
-                0x06 | 0x15 => {
-                    format!("{:6.3} V ", a as f32 * b as f32 * 0.001)
-                },
-                0x07 => {
-                    format!("{:6.2} km/h ", a as f32 * b as f32 * 0.01)
-                },
-                0x0f => {
-                    format!("{:7.2} ms ", a as f32 * b as f32 * 0.01)
-                },
-                0x12 => {
-                    format!("{:7.2} mbar ", a as f32 * b as f32 * 0.04)
-                },
-                0x14 => {
-                    format!("{:8.3} % ", a as f32 * (b as f32 - 128.0) / 128.0)
-                },
-                0x19 => {
-                    format!("{:6.3} g/s ", (a as f32 / 128.0) + (b as f32 * 1.1421))
-                },
-                0x21 => {
-                    format!("{:7.3} % ", if a == 0 { b as f32 * 100.0 } else { (b as f32 * 100.0) / a as f32 })
-                },
-                0x24 => {
-                    format!("{:6} km ", (((a as u32) << 8) + b as u32) * 10)
-                },
-                0x2f => {
-                    format!("{:4} ms ", (b as i32 - 128) * a as i32)
-                },
-                0x31 => {
-                    format!("{:7.2} mg/h ", (b as f32 / 4.0) * a as f32 * 0.1)
-                },
-                0x34 => {
-                    format!("{:7.2} Nm ", b as f32 * 0.002 * a as f32 - a as f32)
-                },
-                0x36 => {
-                    format!("{:5} ", ((a as u16) << 8) + b as u16)
-                },
-                0x42 => {
-                    format!("{:6.3} V ", a as f32 * b as f32 / 511.12)
-                }
-                _ => {
-                    format!("{:02x?} ", chunk)
-                }
+                0x01 => format!("{:6.1} rpm ", a as f32 * b as f32 * 0.2),
+                0x02 => format!("{:7.3} % ", a as f32 * b as f32 * 0.002),
+                0x03 => format!("{:7.3} deg ", a as f32 * b as f32 * 0.002),
+                0x05 => format!("{:5.1} C ", a as f32 * (b as f32 - 100.0) * 0.1),
+                0x06 | 0x15 => format!("{:6.3} V ", a as f32 * b as f32 * 0.001),
+                0x07 => format!("{:6.2} km/h ", a as f32 * b as f32 * 0.01),
+                0x0f => format!("{:7.2} ms ", a as f32 * b as f32 * 0.01),
+                0x12 => format!("{:7.2} mbar ", a as f32 * b as f32 * 0.04),
+                0x14 => format!("{:8.3} % ", a as f32 * (b as f32 - 128.0) / 128.0),
+                0x19 => format!("{:6.3} g/s ", (a as f32 / 128.0) + (b as f32 * 1.1421)),
+                0x21 => format!(
+                    "{:7.3} % ",
+                    if a == 0 {
+                        b as f32 * 100.0
+                    } else {
+                        (b as f32 * 100.0) / a as f32
+                    }
+                ),
+                0x24 => format!("{:6} km ", (((a as u32) << 8) + b as u32) * 10),
+                0x2f => format!("{:4} ms ", (b as i32 - 128) * a as i32),
+                0x31 => format!("{:7.2} mg/h ", (b as f32 / 4.0) * a as f32 * 0.1),
+                0x34 => format!("{:7.2} Nm ", b as f32 * 0.002 * a as f32 - a as f32),
+                0x36 => format!("{:5} ", ((a as u16) << 8) + b as u16),
+                0x42 => format!("{:6.3} V ", a as f32 * b as f32 / 511.12),
+                _ => format!("{:02x?} ", chunk),
             })
         }
 

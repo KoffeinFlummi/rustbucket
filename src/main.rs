@@ -1,4 +1,4 @@
-use std::io::{Write, stdout};
+use std::io::{stdout, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -199,13 +199,15 @@ fn cmd_read_data(args: Args) -> Result<(), Error> {
     println!("");
 
     while running.load(Ordering::SeqCst) {
-        print!("\r{}: {}",
+        print!(
+            "\r{}: {}",
             if args.arg_protocol == Some(Protocol::Kwp1281) {
                 format!("Group {} (0x{:02x})", pid, pid).green().bold()
             } else {
                 format!("PID {} (0x{:02x})", pid, pid).green().bold()
             },
-            protocol.read_data_formatted(pid, args.flag_freeze_frame)?);
+            protocol.read_data_formatted(pid, args.flag_freeze_frame)?
+        );
         stdout().flush()?;
 
         if !args.flag_tail {
@@ -224,7 +226,7 @@ fn cmd_dump_data(args: Args) -> Result<(), Error> {
     for i in 0x00..=0xff {
         match protocol.read_data(i, args.flag_freeze_frame) {
             Ok(data) => println!("{:02x} {:02x?}", i, data),
-            Err(e) => error!("Failed to read PID {:02}: {}", i, e)
+            Err(e) => error!("Failed to read PID {:02}: {}", i, e),
         }
     }
 
