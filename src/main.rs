@@ -111,10 +111,13 @@ fn init_protocol(args: &Args) -> Result<Box<dyn Diagnose>, Error> {
     Ok(match args.arg_protocol {
         Some(Protocol::Can) => {
             let mut can = CanBus::init(args.flag_bitrate)?;
-            info!(
-                "VIN: {:?}",
-                String::from_utf8_lossy(&can.obd_query(0x09, &[0x02])?[1..])
-            );
+            if let Ok(vin) = can.obd_query(0x09, &[0x02]) {
+                info!("VIN: {:?}", String::from_utf8_lossy(&vin[1..]));
+            } else {
+                // Display error but keep going. Might be an issue with multi-
+                // frame messages, so other functionality might still work.
+                error!("Failed to retrieve VIN.");
+            }
             Box::new(can)
         }
         Some(Protocol::Kwp1281) => {
