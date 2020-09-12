@@ -259,13 +259,13 @@ impl<T: Obd2Protocol> Diagnose for T {
                     14 => "Bifuel running Propane",
                     15 => "Bifuel running Electricity",
                     16 => "Bifuel running electric and combustion engine",
-                    17 => "Hybrid gasoline",
+                    17 => "Hybrid Gasoline",
                     18 => "Hybrid Ethanol",
                     19 => "Hybrid Diesel",
                     20 => "Hybrid Electric",
                     21 => "Hybrid running electric and combustion engine",
                     22 => "Hybrid Regenerative",
-                    23 => "Bifuel running diesel",
+                    23 => "Bifuel running Diesel",
                     _ => "Unknown"
                 })
             },
@@ -281,12 +281,20 @@ impl<T: Obd2Protocol> Diagnose for T {
                     (((data[0] as i32) << 8) + data[1] as i32) - 32767)
             },
             0x55 | 0x56 | 0x57 | 0x58 => {
-                format!("{} term secondary oxygen sensor trim: bank {}: {:6.2} %, bank {}: {:6.2} %",
-                    if pid == 0x55 || pid == 0x57 { "Short" } else { "Long" },
-                    if pid <= 0x56 { 1 } else { 3 },
-                    data[0] as f32 / 1.28 - 100.0,
-                    if pid <= 0x56 { 2 } else { 4 },
-                    data[1] as f32 / 1.28 - 100.0)
+                if data.len() > 1 {
+                    format!("{} term secondary oxygen sensor trim: bank {}: {:6.2} %, bank {}: {:6.2} %",
+                        if pid == 0x55 || pid == 0x57 { "Short" } else { "Long" },
+                        if pid <= 0x56 { 1 } else { 3 },
+                        data[0] as f32 / 1.28 - 100.0,
+                        if pid <= 0x56 { 2 } else { 4 },
+                        data[1] as f32 / 1.28 - 100.0)
+                } else {
+                    // this is guessed, Golf Mk7 returned just 1 byte.
+                    format!("{} term secondary oxygen sensor trim: bank {}: {:6.2} %",
+                        if pid == 0x55 || pid == 0x57 { "Short" } else { "Long" },
+                        if pid <= 0x56 { 1 } else { 2 },
+                        data[0] as f32 / 1.28 - 100.0)
+                }
             },
             0x59 => {
                 format!("Fuel rail absolute pressure: {:6} kPa",
