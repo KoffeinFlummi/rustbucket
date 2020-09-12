@@ -36,7 +36,7 @@ There are some more OBD2 protocols, that apparently are mostly used on American 
 
 Note that the above is my understanding, this whole field is a giant mess of standards and acronyms.
 
-While I don't have access to any vehicles that use ISO 9141 or KWP2000, these should be fairly easy to finish, since the K line physical layer is already mostly implemented (except maybe some initialization modifications). If you need one of them and have a vehicle you'd be willing to test on, let me know, I'll gladly help with the implementation.
+While I don't have access to any vehicles that uses ISO 9141 or KWP2000, these should be fairly easy to finish, since the K line physical layer is already mostly implemented (except maybe some initialization modifications). If you need one of them and have a vehicle you'd be willing to test on, let me know, I'll gladly help with the implementation.
 
 # Tested Vehicles/ECUs
 
@@ -76,7 +76,7 @@ When testing the CAN protocol with two BeagleBone Blues, you should add a termin
 
 For the CAN bus, you can simply connect the BeagleBone Blue's CAN lines directly to the OBD2 connector (On the BeagleBone Black, you'll have to connect a CAN transceiver). For the K Line, the 3.3V logic level of the BeagleBone's UART1 bus will have to be converted to the 12V used on the K line, and vice versa.
 
-I tried to implement [this](https://cdn-shop.adafruit.com/datasheets/an97055.pdf) design for a bi-directional logic level converter using a single N-channel MOSFET, but I couldn't figure out how to do so while making sure that the BeagleBone pins don't sink too much current. Since I had a bunch of N-MOSFETs lying around anyway, I just went with this horrendously inefficient design using 2 MOSFETs for reading and writing respectively:
+I tried to implement [this](https://cdn-shop.adafruit.com/datasheets/an97055.pdf) design for a bi-directional logic level converter using a single N-channel MOSFET, but I couldn't figure out how to do so while making sure that the BeagleBone pins don't sink too much current. Since I had a bunch of N-channel MOSFETs lying around anyway, I just went with this horrendously inefficient design using 2 MOSFETs for reading and writing respectively:
 
 <p align="center">
     <a href="https://github.com/KoffeinFlummi/rustbucket/blob/master/doc/schematic.png?raw=true">

@@ -39,15 +39,15 @@ Usage:
     rustbucket --version
 
 Args:
-    <protocol>          Protcol to use. One of:
+    <protocol>          Protocol to use. One of:
                             - can       CAN Bus / ISO 15765
                             - kwp1281   KWP1281, K line only
                             - iso9141   ISO 9141, K & L line, unimplemented
                             - kwp2000   KWP2000 / ISO 14230, K & L line
 
 Commands:
-    read-dtcs           Read diagnostic trouble codes.
-    clear-dtcs          Clear diagnostic trouble codes.
+    read-dtcs           Read Diagnostic Trouble Codes.
+    clear-dtcs          Clear Diagnostic Trouble Codes.
     read-data           Read either current or freeze frame data for a given
                             PID/group (either decimal or hex with 0x prefix).
                             Freeze frame not supported on KWP1281.
@@ -62,7 +62,7 @@ Commands:
 Options:
     --pending           Read pending DTCs instead of stored ones.
                             (not supported by KWP1281)
-    --bitrate=<bps>     Set baud/bit rate manually. For KWP1281 protocol this
+    --bitrate=<bps>     Set baud/bit rate manually. For K line protocols this
                             will be determined automagically by default.
                             For the CAN bus, this defaults to 500,000.
     -t --tail           Keep requerying data.
@@ -70,6 +70,11 @@ Options:
     -v --verbose        Show more output.
     -h --help           Show usage information.
     --version           Show version.
+
+For more information on OBD2 PIDs, consult resources such as:
+    https://en.wikipedia.org/wiki/OBD-II_PIDs#Service_01
+
+For KWP1281, group IDs and their meanings differ by ECU.
 ";
 
 /// Enum of protocols for CLI arg parsing
@@ -211,6 +216,14 @@ fn cmd_read_data(args: Args) -> Result<(), Error> {
             },
             protocol.read_data_formatted(pid, args.flag_freeze_frame)?
         );
+
+        // Since -v makes protocols print data, staying on the same line
+        // doesn't work anyways, and sometimes it may be desirable to see
+        // previous readings.
+        if args.flag_verbose {
+            println!("");
+        }
+
         stdout().flush()?;
 
         if !args.flag_tail {
@@ -218,7 +231,14 @@ fn cmd_read_data(args: Args) -> Result<(), Error> {
         }
     }
 
-    println!("");
+    if !args.flag_verbose {
+        println!("");
+    }
+
+    // Insert a newline between the output and the CAN Drop debug log.
+    if args.arg_protocol == Some(Protocol::Can) && args.flag_verbose {
+        println!("");
+    }
 
     Ok(())
 }
