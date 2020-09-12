@@ -40,12 +40,14 @@ While I don't have access to any vehicles that uses ISO 9141 or KWP2000, these s
 
 # Tested Vehicles/ECUs
 
-| Vehicle/ECU            | Protocol | Baud/Bit Rate | Notes |
-|------------------------|----------|---------------|-------|
-| VW Golf Mk4 (1J), 2001 | KWP1281  | 10400         |       |
-| Siemens SIMOS2.1B ECU  | KWP1281  | 9600          | [Pinout](https://wiki.obdtuning.de/images/9/99/VAG_Simos2.4.jpg) (also has a 500kbps CAN bus on pins 29 (L) & 31 (H), but this is not used for diagnostics and does not respond to OBD2 queries) |
-| Bosch EDC16U34 ECU     | CAN      | 500000        | [Pinout](http://diagprof.com/de/ecu_tipps_und_tricks/vag/motorelektronik/bosch/edc16u34) |
-| Bosch EDC16U34 ECU     | KWP2000  | 10400         | Initializes without L line, allows reading VIN, but does not respond to OBD2 queries. |
+| Vehicle/ECU                  | Protocol | Baud/Bit Rate | Notes |
+|------------------------------|----------|---------------|-------|
+| VW Golf Mk4 (1J), 2001       | KWP1281  | 10400         |       |
+| VW Golf Mk7 (AUV), 2014      | CAN      | 500000        | Most things work, but multi-frame messages (VIN, more than 2 DTCs) do not. Might require modifications to flow control messages. |
+| ~Renault Zoe (AGVYB0), 2015~ | CAN      | 500000        | CAN bus is active, but does not respond to OBD2 queries. I did not spend much time on this, might require some sort of initialization. |
+| Siemens SIMOS2.1B ECU        | KWP1281  | 9600          | [Pinout](https://wiki.obdtuning.de/images/9/99/VAG_Simos2.4.jpg) (also has a 500kbps CAN bus on pins 29 (L) & 31 (H), but this is not used for diagnostics and does not respond to OBD2 queries) |
+| Bosch EDC16U34 ECU           | CAN      | 500000        | [Pinout](http://diagprof.com/de/ecu_tipps_und_tricks/vag/motorelektronik/bosch/edc16u34) |
+| Bosch EDC16U34 ECU           | KWP2000  | 10400         | Initializes without L line, allows reading VIN, but does not respond to OBD2 queries. |
 
 # Compiling & Usage
 
@@ -70,7 +72,7 @@ The program contains modes for testing the hardware and simulating a car so you 
     </a>
 </p>
 
-When testing the CAN protocol with two BeagleBone Blues, you should add a terminating resistor (ideally 120Ω - I used 100Ω) between the CAN lines. The R104 120Ω terminating resistor is not populated from the factory on the BB Blue, and with an unterminated CAN bus you will have problems with the higher bit rates (such as the default 500kbps). This may also apply to some desktop ECUs, but the ones I tested with had their own terminators.
+When testing the CAN protocol with two BeagleBone Blues, you should add a terminating resistor (I used 100Ω) between the CAN lines. The R104 120Ω terminating resistor is not populated from the factory on the BB Blue, and with an unterminated CAN bus you will have problems with the higher bit rates (such as the default 500kbps). This may also apply to some desktop ECUs, but the ones I tested with had 66Ω internal resistors.
 
 # Hardware
 
