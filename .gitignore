@@ -9,3 +9,4 @@ _autosave*
 fp-info-cache
 *.pdf
 *.log
+*.csv
