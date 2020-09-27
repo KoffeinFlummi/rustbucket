@@ -1,6 +1,8 @@
+use std::fs::File;
 use std::io::{stdout, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use colored::*;
 use docopt::Docopt;
@@ -31,7 +33,7 @@ const USAGE: &'static str = "
 Usage:
     rustbucket <protocol> read-dtcs [-v] [--bitrate=<bps>] [--pending]
     rustbucket <protocol> clear-dtcs [-v] [--bitrate=<bps>]
-    rustbucket <protocol> read-data <pid> [-v] [-t] [--freeze-frame]
+    rustbucket <protocol> read-data <pid> [-v] [-t [--log=<logfile>]] [--freeze-frame]
     rustbucket <protocol> dump-data [-v] [-r] [--freeze-frame]
     rustbucket <protocol> simulator [-v] [--bitrate=<bps>]
     rustbucket test-hardware (tx|rx) [-v] [--bitrate=<bps>]
@@ -66,6 +68,8 @@ Options:
                             will be determined automagically by default.
                             For the CAN bus, this defaults to 500,000.
     -t --tail           Keep requerying data.
+    -l --log=<logfile>  Write floating point values to CSV file.
+    --freeze-frame      Query data from freeze frame.
     -r --raw            Dump data in raw hex.
     -v --verbose        Show more output.
     -h --help           Show usage information.
@@ -104,6 +108,7 @@ struct Args {
     flag_pending: bool,
     flag_freeze_frame: bool,
     flag_tail: bool,
+    flag_log: Option<String>,
     flag_raw: bool,
 }
 
@@ -209,7 +214,33 @@ fn cmd_read_data(args: Args) -> Result<(), Error> {
 
     println!("");
 
-    while running.load(Ordering::SeqCst) {
+    let mut logfile = None;
+    if let Some(p) = args.flag_log {
+        logfile = Some(File::create(p)?);
+    }
+
+    let start = SystemTime::now();
+
+    loop {
+        let data = protocol.read_data(pid, args.flag_freeze_frame)?;
+
+        if let Some(f) = logfile.as_mut() {
+            let floats = data.floats()?;
+
+            f.write(
+                format!(
+                    "{},{}\n",
+                    start.elapsed().unwrap().as_secs_f32(),
+                    floats
+                        .iter()
+                        .map(|f| f.to_string())
+                        .collect::<Vec<String>>()
+                        .join(",")
+                )
+                .as_bytes(),
+            )?;
+        }
+
         print!(
             "\r{}: {}",
             if args.arg_protocol == Some(Protocol::Kwp1281) {
@@ -217,7 +248,7 @@ fn cmd_read_data(args: Args) -> Result<(), Error> {
             } else {
                 format!("PID {} (0x{:02x})", pid, pid).green().bold()
             },
-            protocol.read_data_formatted(pid, args.flag_freeze_frame)?
+            data
         );
 
         // Since -v makes protocols print data, staying on the same line
@@ -229,7 +260,7 @@ fn cmd_read_data(args: Args) -> Result<(), Error> {
 
         stdout().flush()?;
 
-        if !args.flag_tail {
+        if !args.flag_tail || !running.load(Ordering::SeqCst) {
             break;
         }
     }
@@ -249,17 +280,31 @@ fn cmd_read_data(args: Args) -> Result<(), Error> {
 fn cmd_dump_data(args: Args) -> Result<(), Error> {
     let mut protocol = init_protocol(&args)?;
 
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .unwrap();
+
     for i in 0x00..=0xff {
+        if !running.load(Ordering::SeqCst) {
+            break;
+        }
+
+        let data = match protocol.read_data(i, args.flag_freeze_frame) {
+            Ok(d) => d,
+            Err(e) => {
+                error!("Failed to read PID {:02}: {}", i, e);
+                continue;
+            }
+        };
+
         if args.flag_raw {
-            match protocol.read_data(i, args.flag_freeze_frame) {
-                Ok(data) => println!("{:02x} {:02x?}", i, data),
-                Err(e) => error!("Failed to read PID {:02}: {}", i, e),
-            }
+            println!("{:02x} {:02x?}", i, data.raw());
         } else {
-            match protocol.read_data_formatted(i, args.flag_freeze_frame) {
-                Ok(s) => println!("{:02x} {:?}", i, s),
-                Err(e) => error!("Failed to read PID {:02}: {}", i, e),
-            }
+            println!("{:02x} {}", i, data);
         }
     }
 

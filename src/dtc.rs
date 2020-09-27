@@ -21,12 +21,620 @@ pub trait Diagnose {
      * Read data, either current or from freeze frame. Freeze frames are an
      * OBD2 feature and not supported on KWP1281.
      */
-    fn read_data(&mut self, pid: u8, freeze_frame: bool) -> Result<Vec<u8>, Error>;
+    fn read_data(&mut self, pid: u8, freeze_frame: bool) -> Result<DiagnosticData, Error>;
+}
+
+/**
+ * Type for a PID/group reading.
+ */
+#[derive(Clone, Debug)]
+pub struct DiagnosticData {
+    pid: u8,
+    data: Vec<u8>,
+    kwp1281: bool, // TODO: maybe do this with an enum?
+}
+
+impl std::convert::TryInto<Vec<f32>> for DiagnosticData {
+    type Error = Error;
+
+    fn try_into(self) -> Result<Vec<f32>, Error> {
+        self.floats()
+    }
+}
+
+impl std::fmt::Display for DiagnosticData {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let s = match self.formatted() {
+            Ok(s) => s,
+            Err(_) => format!("{:02x?}", self.data),
+        };
+
+        write!(f, "{}", s)
+    }
+}
+
+impl DiagnosticData {
+    /**
+     * Initialize with data from a KWP1281 group reading.
+     */
+    pub fn from_kwp1281_data(group: u8, data: Vec<u8>) -> Self {
+        Self {
+            pid: group,
+            data,
+            kwp1281: true,
+        }
+    }
 
     /**
-     * Read data, formatted as string with units if possible.
+     * Initialize with data from an OBD2 PID reading.
      */
-    fn read_data_formatted(&mut self, pid: u8, freeze_frame: bool) -> Result<String, Error>;
+    pub fn from_obd2_data(pid: u8, data: Vec<u8>) -> Self {
+        Self {
+            pid,
+            data,
+            kwp1281: false,
+        }
+    }
+
+    /**
+     * Return the raw bytes.
+     */
+    pub fn raw(&self) -> &Vec<u8> {
+        &self.data
+    }
+
+    /*
+     * TODO
+     *
+     * I'm not quite happy with these methods, since there is a lot of code
+     * duplication. However, since both parsing as floats and formatting with
+     * name or units would require massive matches, I've not come up with a
+     * satisfactory solution yet.
+     */
+
+    fn floats_kwp1281(&self) -> Result<Vec<f32>, Error> {
+        if self.data[0] == 0x3f {
+            return Err(Error::new("Can't format string as floats."));
+        }
+
+        if self.data.len() % 3 != 0 {
+            return Err(Error::new("Unexpected data length."));
+        }
+
+        let mut floats: Vec<f32> = Vec::with_capacity(4);
+        for chunk in self.data.chunks(3) {
+            if chunk == [0x25, 0x00, 0x00] {
+                continue;
+            }
+
+            let format = chunk[0];
+            let a = chunk[1];
+            let b = chunk[2];
+
+            floats.push(match format {
+                0x01 => a as f32 * b as f32 * 0.2,
+                0x02 => a as f32 * b as f32 * 0.002,
+                0x03 => a as f32 * b as f32 * 0.002,
+                0x05 => a as f32 * (b as f32 - 100.0) * 0.1,
+                0x06 | 0x15 => a as f32 * b as f32 * 0.001,
+                0x07 => a as f32 * b as f32 * 0.01,
+                0x0f => a as f32 * b as f32 * 0.01,
+                0x12 => a as f32 * b as f32 * 0.04,
+                0x14 => a as f32 * (b as f32 - 128.0) / 128.0,
+                0x19 => (a as f32 / 128.0) + (b as f32 * 1.1421),
+                0x21 => {
+                    if a == 0 {
+                        b as f32 * 100.0
+                    } else {
+                        (b as f32 * 100.0) / a as f32
+                    }
+                }
+                0x24 => (((a as u32) << 8) + b as u32) as f32 * 10.0,
+                0x2f => ((b as i32 - 128) * a as i32) as f32,
+                0x31 => (b as f32 / 4.0) * a as f32 * 0.1,
+                0x34 => b as f32 * 0.002 * a as f32 - a as f32,
+                0x36 => (((a as u16) << 8) + b as u16) as f32,
+                0x42 => a as f32 * b as f32 / 511.12,
+                _ => {
+                    continue;
+                }
+            });
+        }
+
+        Ok(floats)
+    }
+
+    fn formatted_kwp1281(&self) -> Result<String, Error> {
+        // Special case: all the data is one string
+        if self.data[0] == 0x3f {
+            return Ok(String::from_utf8_lossy(&self.data[1..]).to_string());
+        }
+
+        if self.data.len() % 3 != 0 {
+            return Err(Error::new("Unexpected data length."));
+        }
+
+        // Otherwise, data contains groups (usually 4) of 1 format identifier,
+        // and 2 data bytes. Some may be empty (0x25, 0x00, 0x00).
+        let mut output = String::from("");
+        for chunk in self.data.chunks(3) {
+            if chunk == [0x25, 0x00, 0x00] {
+                continue;
+            }
+
+            let format = chunk[0];
+            let a = chunk[1];
+            let b = chunk[2];
+
+            output.push_str(&match format {
+                0x01 => format!("{:6.1} rpm ", a as f32 * b as f32 * 0.2),
+                0x02 => format!("{:7.3} % ", a as f32 * b as f32 * 0.002),
+                0x03 => format!("{:7.3} deg ", a as f32 * b as f32 * 0.002),
+                0x05 => format!("{:5.1} C ", a as f32 * (b as f32 - 100.0) * 0.1),
+                0x06 | 0x15 => format!("{:6.3} V ", a as f32 * b as f32 * 0.001),
+                0x07 => format!("{:6.2} km/h ", a as f32 * b as f32 * 0.01),
+                0x0f => format!("{:7.2} ms ", a as f32 * b as f32 * 0.01),
+                0x12 => format!("{:7.2} mbar ", a as f32 * b as f32 * 0.04),
+                0x14 => format!("{:8.3} % ", a as f32 * (b as f32 - 128.0) / 128.0),
+                0x19 => format!("{:6.3} g/s ", (a as f32 / 128.0) + (b as f32 * 1.1421)),
+                0x21 => format!(
+                    "{:7.3} % ",
+                    if a == 0 {
+                        b as f32 * 100.0
+                    } else {
+                        (b as f32 * 100.0) / a as f32
+                    }
+                ),
+                0x24 => format!("{:6} km ", (((a as u32) << 8) + b as u32) * 10),
+                0x2f => format!("{:4} ms ", (b as i32 - 128) * a as i32),
+                0x31 => format!("{:7.2} mg/h ", (b as f32 / 4.0) * a as f32 * 0.1),
+                0x34 => format!("{:7.2} Nm ", b as f32 * 0.002 * a as f32 - a as f32),
+                0x36 => format!("{:5} ", ((a as u16) << 8) + b as u16),
+                0x42 => format!("{:6.3} V ", a as f32 * b as f32 / 511.12),
+                _ => format!("{:02x?} ", chunk),
+            })
+        }
+
+        if output == "" {
+            output = "No data".to_string()
+        }
+
+        Ok(output.trim_end().to_string())
+    }
+
+    fn floats_obd2(&self) -> Result<Vec<f32>, Error> {
+        let pid = self.pid;
+        let data = &self.data;
+
+        Ok(match pid {
+            0x04 => vec![data[0] as f32 / 2.55],
+            0x05 => vec![(data[0] as i16 - 40) as f32],
+            0x06 | 0x07 | 0x08 | 0x09 => vec![data[0] as f32 / 1.25 - 100.0],
+            0x0a => vec![(data[0] as u16 * 3) as f32],
+            0x0b => vec![data[0] as f32],
+            0x0c => vec![(256.0 * data[0] as f32 + data[1] as f32) / 4.0],
+            0x0d => vec![data[0] as f32],
+            0x0e => vec![(data[0] as f32) / 2.0 - 64.0],
+            0x0f => vec![(data[0] as i16 - 40) as f32],
+            0x10 => vec![(256.0 * data[0] as f32 + data[1] as f32) / 100.0],
+            0x11 => vec![data[0] as f32 / 2.55],
+            0x14 | 0x15 | 0x16 | 0x17 | 0x18 | 0x19 | 0x1a | 0x1b => {
+                if data[1] == 0xff {
+                    vec![data[0] as f32 / 200.0]
+                } else {
+                    vec![data[0] as f32 / 200.0, data[1] as f32 / 1.28 - 100.0]
+                }
+            }
+            0x1f => vec![((data[0] as u16) << 8 + data[1] as u16) as f32],
+            0x21 => vec![((data[0] as u16) << 8 + data[1] as u16) as f32],
+            0x22 => vec![(data[0] as f32 * 256.0 + data[1] as f32) * 0.079],
+            0x23 => vec![(((data[0] as u32) << 8 + data[1] as u32) * 10) as f32],
+            0x24 | 0x25 | 0x26 | 0x27 | 0x28 | 0x29 | 0x2a | 0x2b => vec![
+                (2.0 / 65536.0) * (data[0] as f32 * 256.0 + data[1] as f32),
+                (8.0 / 65536.0) * (data[2] as f32 * 256.0 + data[3] as f32),
+            ],
+            0x2c => vec![data[0] as f32 / 2.55],
+            0x2d => vec![data[0] as f32 / 1.28 - 100.0],
+            0x2e => vec![data[0] as f32 / 2.55],
+            0x2f => vec![data[0] as f32 / 2.55],
+            0x30 => vec![data[0] as f32],
+            0x31 => vec![((data[0] as u16) << 8 + data[1] as u16) as f32],
+            0x32 => vec![(data[0] as f32 * 256.0 + data[1] as f32) / 4.0],
+            0x33 => vec![data[0] as f32],
+            0x34 | 0x35 | 0x36 | 0x37 | 0x38 | 0x39 | 0x3a | 0x3b => vec![
+                (2.0 / 65536.0) * (data[0] as f32 * 256.0 + data[1] as f32),
+                data[2] as f32 + (data[3] as f32 / 256.0) + 128.0,
+            ],
+            0x3c | 0x3d | 0x3e | 0x3f => {
+                vec![(data[0] as f32 * 256.0 + data[1] as f32) / 10.0 - 40.0]
+            }
+            0x42 => vec![(data[0] as f32 * 256.0 + data[1] as f32) / 1000.0],
+            0x43 => vec![(data[0] as f32 * 256.0 + data[1] as f32) / 2.55],
+            0x44 => vec![(data[0] as f32 * 256.0 + data[1] as f32) * (2.0 / 65536.0)],
+            0x45 => vec![data[0] as f32 / 2.55],
+            0x46 => vec![(data[0] as i16 - 40) as f32],
+            0x47 => vec![data[0] as f32 / 2.55],
+            0x48 => vec![data[0] as f32 / 2.55],
+            0x49 => vec![data[0] as f32 / 2.55],
+            0x4a => vec![data[0] as f32 / 2.55],
+            0x4b => vec![data[0] as f32 / 2.55],
+            0x4c => vec![data[0] as f32 / 2.55],
+            0x4d => vec![(((data[0] as u16) << 8) + data[1] as u16) as f32],
+            0x4e => vec![(((data[0] as u16) << 8) + data[1] as u16) as f32],
+            0x4f => vec![
+                data[0] as f32,
+                data[1] as f32,
+                data[2] as f32,
+                (data[3] as u16 * 10) as f32,
+            ],
+            0x50 => vec![(data[0] as u16 * 10) as f32],
+            0x52 => vec![data[0] as f32 / 2.55],
+            0x53 => vec![(data[0] as f32 * 256.0 + data[1] as f32) / 200.0],
+            0x54 => vec![((((data[0] as i32) << 8) + data[1] as i32) - 32767) as f32],
+            0x55 | 0x56 | 0x57 | 0x58 => {
+                if data.len() > 1 {
+                    vec![data[0] as f32 / 1.28 - 100.0, data[1] as f32 / 1.28 - 100.0]
+                } else {
+                    // this is guessed, Golf Mk7 returned just 1 byte.
+                    vec![data[0] as f32 / 1.28 - 100.0]
+                }
+            }
+            0x59 => vec![((((data[0] as u32) << 8) + data[1] as u32) * 10) as f32],
+            0x5a => vec![data[0] as f32 / 2.55],
+            0x5b => vec![data[0] as f32 / 2.55],
+            0x5c => vec![(data[0] as i16 - 40) as f32],
+            0x5d => vec![(data[0] as f32 * 256.0 + data[1] as f32) / 128.0 - 210.0],
+            0x5e => vec![(data[0] as f32 * 256.0 + data[1] as f32) / 20.0],
+            0x61 => vec![(data[0] as i16 - 125) as f32],
+            0x62 => vec![(data[0] as i16 - 125) as f32],
+            0x63 => vec![(((data[0] as u16) << 8) + data[1] as u16) as f32],
+            0x64 => vec![
+                (data[0] as i16 - 125) as f32,
+                (data[1] as i16 - 125) as f32,
+                (data[2] as i16 - 125) as f32,
+                (data[3] as i16 - 125) as f32,
+                (data[4] as i16 - 125) as f32,
+            ],
+            0xa6 => vec![
+                (((data[0] as u64) << 24)
+                    + ((data[1] as u64) << 16)
+                    + ((data[2] as u64) << 8)
+                    + data[3] as u64) as f32,
+            ],
+            _ => {
+                return Err(Error::new("Can't format data."));
+            }
+        })
+    }
+
+    fn formatted_obd2(&self) -> Result<String, Error> {
+        let pid = self.pid;
+        let data = &self.data;
+
+        Ok(match pid {
+            0x02 => {
+                let code = ((data[0] as u16) << 8) + data[1] as u16;
+                format!("Freeze DTC: {}", DiagnosticTroubleCode::Obd(code))
+            },
+            0x04 => {
+                format!("Calculated engine load: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x05 => {
+                format!("Engine coolant temperature: {:3} C", data[0] as i16 - 40)
+            },
+            0x06 | 0x07 | 0x08 | 0x09 => {
+                format!("{} term fuel trim - Bank {}: {:7.2} %",
+                    if pid == 0x06 || pid == 0x08 { "Short" } else { "Long" },
+                    if pid >= 0x08 { 2 } else { 1 },
+                    data[0] as f32 / 1.25 - 100.0)
+            },
+            0x0a => {
+                format!("Fuel pressure: {:3} kPa", data[0] as u16 * 3)
+            },
+            0x0b => {
+                format!("Intake manifold absolute pressure: {:3} kPa", data[0])
+            },
+            0x0c => {
+                format!("Engine speed: {:8.2} rpm", (256.0 * data[0] as f32 + data[1] as f32) / 4.0)
+            },
+            0x0d => {
+                format!("Vehicle speed: {:3} km/h", data[0])
+            },
+            0x0e => {
+                format!("Timing advance: {:5.1} deg before TDC", (data[0] as f32) / 2.0 - 64.0)
+            },
+            0x0f => {
+                format!("Intake air temperature: {:3} C", data[0] as i16 - 40)
+            },
+            0x10 => {
+                format!("MAF air flow rate: {:6.2} g/s", (256.0 * data[0] as f32 + data[1] as f32) / 100.0)
+            },
+            0x11 => {
+                format!("Throttle position: {:3} %", data[0] as f32 / 2.55)
+            },
+            0x14 | 0x15 | 0x16 | 0x17 | 0x18 | 0x19 | 0x1a | 0x1b => {
+                let id = pid - 0x13;
+                if data[1] == 0xff {
+                    format!("Oxygen Sensor {}: {:5.3} V, N/A %",
+                        id,
+                        data[0] as f32 / 200.0)
+                } else {
+                    format!("Oxygen Sensor {}: {:5.3} V, {:7.2} %",
+                        id,
+                        data[0] as f32 / 200.0,
+                        data[1] as f32 / 1.28 - 100.0)
+                }
+            },
+            0x1c => {
+                format!("OBD standard: {}", match data[0] {
+                    1 => "OBD-II as defined by the CARB",
+                    2 => "OBD as defined by the EPA",
+                    3 => "OBD and OBD-II",
+                    4 => "OBD-I",
+                    5 => "Not OBD compliant",
+                    6 => "EOBD (Europe)",
+                    7 => "EOBD and OBD-II",
+                    8 => "EOBD and OBD",
+                    9 => "EOBD, OBD and OBD II",
+                    10 => "JOBD (Japan)",
+                    11 => "JOBD and OBD II",
+                    12 => "JOBD and EOBD",
+                    13 => "JOBD, EOBD, and OBD II",
+                    14 => "Reserved",
+                    15 => "Reserved",
+                    16 => "Reserved",
+                    17 => "Engine Manufacturer Diagnostics (EMD)",
+                    18 => "Engine Manufacturer Diagnostics Enhanced (EMD+)",
+                    19 => "Heavy Duty On-Board Diagnostics (Child/Partial) (HD OBD-C)",
+                    20 => "Heavy Duty On-Board Diagnostics (HD OBD)",
+                    21 => "World Wide Harmonized OBD (WWH OBD)",
+                    22 => "Reserved",
+                    23 => "Heavy Duty Euro OBD Stage I without NOx control (HD EOBD-I)",
+                    24 => "Heavy Duty Euro OBD Stage I with NOx control (HD EOBD-I N)",
+                    25 => "Heavy Duty Euro OBD Stage II without NOx control (HD EOBD-II)",
+                    26 => "Heavy Duty Euro OBD Stage II with NOx control (HD EOBD-II N)",
+                    27 => "Reserved",
+                    28 => "Brazil OBD Phase 1 (OBDBr-1)",
+                    29 => "Brazil OBD Phase 2 (OBDBr-2)",
+                    30 => "Korean OBD (KOBD)",
+                    31 => "India OBD I (IOBD I)",
+                    32 => "India OBD II (IOBD II)",
+                    33 => "Heavy Duty Euro OBD Stage VI (HD EOBD-IV)",
+                    _ => "Unknown"
+                })
+            },
+            0x1f => {
+                format!("Run time since engine start: {:5} s", (data[0] as u16) << 8 + data[1] as u16)
+            },
+            0x21 => {
+                format!("Distance traveled with MIL on: {:5} km", (data[0] as u16) << 8 + data[1] as u16)
+            },
+            0x22 => {
+                format!("Fuel rail pressure: {:8.3} kPa", (data[0] as f32 * 256.0 + data[1] as f32) * 0.079)
+            },
+            0x23 => {
+                format!("Fuel rail gauge pressure: {:6} kPa", ((data[0] as u32) << 8 + data[1] as u32) * 10)
+            },
+            0x24 | 0x25 | 0x26 | 0x27 | 0x28 | 0x29 | 0x2a | 0x2b => {
+                let id = pid - 0x23;
+                format!("Oxygen Sensor {}: {:5.3}, {:6.4} V", id,
+                    (2.0 / 65536.0) * (data[0] as f32 * 256.0 + data[1] as f32),
+                    (8.0 / 65536.0) * (data[2] as f32 * 256.0 + data[3] as f32))
+            },
+            0x2c => {
+                format!("Commanded EGR: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x2d => {
+                format!("EGR error: {:7.2} %", data[0] as f32 / 1.28 - 100.0)
+            },
+            0x2e => {
+                format!("Commanded evaporative purge: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x2f => {
+                format!("Fuel tank level input: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x30 => {
+                format!("Warm-ups since codes cleared: {:3}", data[0])
+            },
+            0x31 => {
+                format!("Distance traveled since codes cleared: {:5} km", (data[0] as u16) << 8 + data[1] as u16)
+            },
+            0x32 => {
+                format!("Evaporative sytem vapor pressure: {:8.2} Pa", (data[0] as f32 * 256.0 + data[1] as f32) / 4.0)
+            },
+            0x33 => {
+                format!("Absolute barometric pressure: {:3} kPa", data[0])
+            },
+            0x34 | 0x35 | 0x36 | 0x37 | 0x38 | 0x39 | 0x3a | 0x3b => {
+                let id = pid - 0x33;
+                format!("Oxygen sensor {}: {:5.3}, {:6.2} mA", id,
+                    (2.0 / 65536.0) * (data[0] as f32 * 256.0 + data[1] as f32),
+                    data[2] as f32 + (data[3] as f32 / 256.0) + 128.0)
+            },
+            0x3c | 0x3d | 0x3e | 0x3f => {
+                format!("Catalyst temperature: Bank {}, Sensor {}: {:6.1} C",
+                    if pid == 0x3c || pid == 0x3e { 1 } else { 2 },
+                    if pid <= 0x3d { 1 } else { 2 },
+                    (data[0] as f32 * 256.0 + data[1] as f32) / 10.0 - 40.0)
+            },
+            0x42 => {
+                format!("Control module voltage: {:6.3} V", (data[0] as f32 * 256.0 + data[1] as f32) / 1000.0)
+            },
+            0x43 => {
+                format!("Absolute load value: {:6.2} %", (data[0] as f32 * 256.0 + data[1] as f32) / 2.55)
+            },
+            0x44 => {
+                format!("Fuel-Air commanded equiv. ratio: {:5.3}", (data[0] as f32 * 256.0 + data[1] as f32) * (2.0 / 65536.0))
+            },
+            0x45 => {
+                format!("Relative throttle position: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x46 => {
+                format!("Ambient air temperature: {:3} C", data[0] as i16 - 40)
+            },
+            0x47 => {
+                format!("Absolute throttle position B: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x48 => {
+                format!("Absolute throttle position C: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x49 => {
+                format!("Absolute pedal position D: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x4a => {
+                format!("Absolute pedal position E: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x4b => {
+                format!("Absolute pedal position F: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x4c => {
+                format!("Commanded throttle actuator: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x4d => {
+                format!("Time run with MIL on: {:5} m", ((data[0] as u16) << 8) + data[1] as u16)
+            },
+            0x4e => {
+                format!("Time since trouble codes cleared: {:5} m", ((data[0] as u16) << 8) + data[1] as u16)
+            },
+            0x4f => {
+                format!("Max. value for fuel-air equiv. ratio, oxygen sensor voltage, oxygen sensor current, and intake manifold absolute pressure: {:3}, {:3}, {:3}, {:4}",
+                    data[0],
+                    data[1],
+                    data[2],
+                    data[3] as u16 * 10)
+            },
+            0x50 => {
+                format!("Max. value for MAF air flow rate: {:4}", data[0] as u16 * 10)
+            },
+            0x51 => {
+                format!("Fuel type: {}", match data[0] {
+                    0 => "Not available",
+                    1 => "Gasoline",
+                    2 => "Methanol",
+                    3 => "Ethanol",
+                    4 => "Diesel",
+                    5 => "LPG",
+                    6 => "CNG",
+                    7 => "Propane",
+                    8 => "Electric",
+                    9 => "Bifuel running Gasoline",
+                    10 => "Bifuel running Methanol",
+                    11 => "Bifuel running Ethanol",
+                    12 => "Bifuel running LPG",
+                    13 => "Bifuel running CNG",
+                    14 => "Bifuel running Propane",
+                    15 => "Bifuel running Electricity",
+                    16 => "Bifuel running electric and combustion engine",
+                    17 => "Hybrid Gasoline",
+                    18 => "Hybrid Ethanol",
+                    19 => "Hybrid Diesel",
+                    20 => "Hybrid Electric",
+                    21 => "Hybrid running electric and combustion engine",
+                    22 => "Hybrid Regenerative",
+                    23 => "Bifuel running Diesel",
+                    _ => "Unknown"
+                })
+            },
+            0x52 => {
+                format!("Ethanol fuel: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x53 => {
+                format!("Absolute evap. system vapor pressure: {:7.3} kPa",
+                    (data[0] as f32 * 256.0 + data[1] as f32) / 200.0)
+            },
+            0x54 => {
+                format!("Evap. system vapor pressure. {:6} Pa",
+                    (((data[0] as i32) << 8) + data[1] as i32) - 32767)
+            },
+            0x55 | 0x56 | 0x57 | 0x58 => {
+                if data.len() > 1 {
+                    format!("{} term secondary oxygen sensor trim: bank {}: {:6.2} %, bank {}: {:6.2} %",
+                        if pid == 0x55 || pid == 0x57 { "Short" } else { "Long" },
+                        if pid <= 0x56 { 1 } else { 3 },
+                        data[0] as f32 / 1.28 - 100.0,
+                        if pid <= 0x56 { 2 } else { 4 },
+                        data[1] as f32 / 1.28 - 100.0)
+                } else {
+                    // this is guessed, Golf Mk7 returned just 1 byte.
+                    format!("{} term secondary oxygen sensor trim: bank {}: {:6.2} %",
+                        if pid == 0x55 || pid == 0x57 { "Short" } else { "Long" },
+                        if pid <= 0x56 { 1 } else { 2 },
+                        data[0] as f32 / 1.28 - 100.0)
+                }
+            },
+            0x59 => {
+                format!("Fuel rail absolute pressure: {:6} kPa",
+                    (((data[0] as u32) << 8) + data[1] as u32) * 10)
+            },
+            0x5a => {
+                format!("Relative accelerator pedal position: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x5b => {
+                format!("Hybrid battery pack remaining life: {:6.2} %", data[0] as f32 / 2.55)
+            },
+            0x5c => {
+                format!("Engine oil temperature: {:3} C", data[0] as i16 - 40)
+            },
+            0x5d => {
+                format!("Fuel injection timing: {:8.3} deg",
+                    (data[0] as f32 * 256.0 + data[1] as f32) / 128.0 - 210.0)
+            },
+            0x5e => {
+                format!("Engine fuel rate: {:7.2} L/h",
+                    (data[0] as f32 * 256.0 + data[1] as f32) / 20.0)
+            },
+            0x61 => {
+                format!("Driver's demand engine torque: {:4} %", data[0] as i16 - 125)
+            },
+            0x62 => {
+                format!("Actual engine torque: {:4} %", data[0] as i16 - 125)
+            },
+            0x63 => {
+                format!("Engine reference torque: {:5} Nm", ((data[0] as u16) << 8) + data[1] as u16)
+            },
+            0x64 => {
+                format!("Engine percent torque data: idle: {:4} %, P1: {:4} %, P2: {:4} %, P3: {:4} %, P4: {:4} %",
+                    data[0] as i16 - 125,
+                    data[1] as i16 - 125,
+                    data[2] as i16 - 125,
+                    data[3] as i16 - 125,
+                    data[4] as i16 - 125)
+            },
+            0xa6 => {
+                format!("Odometer: {:6} km",
+                    ((data[0] as u64) << 24) + ((data[1] as u64) << 16) +
+                    ((data[2] as u64) << 8) + data[3] as u64)
+            },
+            _ => {
+                return Err(Error::new("Can't format data."));
+            }
+        })
+    }
+
+    /**
+     * Return data formatted as a human-readable string, with units and name
+     * if possible.
+     */
+    pub fn formatted(&self) -> Result<String, Error> {
+        if self.kwp1281 {
+            self.formatted_kwp1281()
+        } else {
+            self.formatted_obd2()
+        }
+    }
+
+    /**
+     * Return data as floating point values if possible.
+     *
+     * For OBD2, this will mostly be single-value Vecs.
+     */
+    pub fn floats(&self) -> Result<Vec<f32>, Error> {
+        if self.kwp1281 {
+            self.floats_kwp1281()
+        } else {
+            self.floats_obd2()
+        }
+    }
 }
 
 /**
