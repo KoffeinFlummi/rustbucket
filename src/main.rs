@@ -11,7 +11,7 @@ use log::{error, info, Level, LevelFilter};
 use serde::Deserialize;
 
 mod can;
-mod dtc;
+mod diagnose;
 mod error;
 mod kline;
 mod kwp1281;
@@ -20,7 +20,7 @@ mod misc;
 mod obd2;
 
 use crate::can::*;
-use crate::dtc::*;
+use crate::diagnose::*;
 use crate::error::*;
 use crate::kline::*;
 use crate::kwp1281::*;

@@ -1,6 +1,6 @@
 //! General diagnosis implementation for all OBD2 protocols
 
-use crate::dtc::*;
+use crate::diagnose::*;
 use crate::error::*;
 
 /// Trait for abstracting general OBD2 functionality common to all protocols.

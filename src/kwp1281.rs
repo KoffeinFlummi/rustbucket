@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use log::{debug, info};
 
-use crate::dtc::*;
+use crate::diagnose::*;
 use crate::error::*;
 use crate::kline::*;
 use crate::misc::*;

@@ -13,7 +13,7 @@
  */
 
 pub mod can;
-pub mod dtc;
+pub mod diagnose;
 pub mod error;
 pub mod kline;
 pub mod kwp1281;
