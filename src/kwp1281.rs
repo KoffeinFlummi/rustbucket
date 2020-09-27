@@ -12,10 +12,7 @@ use crate::error::*;
 use crate::kline::*;
 use crate::misc::*;
 
-/// Address to talk to for initialization (0x01 = ECU)
-const INIT_ADDRESS: u8 = 0x01;
-
-/// Enum of KWP1281 block types.
+/// Enum of KWP1281 block types (also referred to as block titles online).
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Kwp1281BlockType {
     ClearDtcs,
@@ -25,6 +22,10 @@ enum Kwp1281BlockType {
     ReadData,
     DataReply,
     Ascii,
+    ReadAdaptation,
+    TestAdaptation,
+    WriteAdaptation,
+    AdaptationReply,
     Other(u8),
 }
 
@@ -38,6 +39,10 @@ impl From<u8> for Kwp1281BlockType {
             0x29 => Self::ReadData,
             0xe7 => Self::DataReply,
             0xf6 => Self::Ascii,
+            0x21 => Self::ReadAdaptation,
+            0x22 => Self::TestAdaptation,
+            0x2a => Self::WriteAdaptation,
+            0xe6 => Self::AdaptationReply,
             x => Self::Other(x),
         }
     }
@@ -53,6 +58,10 @@ impl Into<u8> for Kwp1281BlockType {
             Self::ReadData => 0x29,
             Self::DataReply => 0xe7,
             Self::Ascii => 0xf6,
+            Self::ReadAdaptation => 0x21,
+            Self::TestAdaptation => 0x22,
+            Self::WriteAdaptation => 0x2a,
+            Self::AdaptationReply => 0xe6,
             Self::Other(x) => x,
         }
     }
@@ -95,8 +104,8 @@ impl Kwp1281 {
      * It will be attempted to deduce the baud rate automatically using a sync
      * byte if no specific baud rate is given.
      */
-    pub fn init(baud_rate: Option<u64>) -> Result<Self, Error> {
-        let kline = KLine::init(baud_rate, INIT_ADDRESS)?;
+    pub fn init(target_address: u8, baud_rate: Option<u64>) -> Result<Self, Error> {
+        let kline = KLine::init(target_address, baud_rate)?;
 
         let mut kwp = Self {
             kline,
@@ -288,6 +297,61 @@ impl Kwp1281 {
             block_type: block_type.into(),
             data,
         })
+    }
+
+    /**
+     * Read adaptation value.
+     */
+    pub fn read_adaptation(&mut self, pid: u8) -> Result<Vec<u8>, Error> {
+        self.write_block(Kwp1281Block {
+            block_type: Kwp1281BlockType::ReadAdaptation,
+            data: vec![pid],
+        })?;
+
+        let response = self.read_block()?;
+
+        if response.block_type == Kwp1281BlockType::AdaptationReply {
+            Ok(response.data[1..].to_vec())
+        } else {
+            Err(Error::new("Unexpected response to ReadAdaptation command."))
+        }
+    }
+
+    /**
+     * Write adaptation value.
+     */
+    pub fn write_adaptation(
+        &mut self,
+        pid: u8,
+        value: &[u8; 2],
+        test: bool,
+    ) -> Result<Vec<u8>, Error> {
+        let block_type = if test {
+            Kwp1281BlockType::TestAdaptation
+        } else {
+            Kwp1281BlockType::WriteAdaptation
+        };
+
+        let mut data: Vec<u8> = vec![pid];
+        data.extend(value);
+
+        if !test {
+            // three bytes of workshop code.
+            // TODO: make this a command line option
+            data.extend(vec![0x00, 0x00, 0x00]);
+        }
+
+        self.write_block(Kwp1281Block { block_type, data })?;
+
+        let response = self.read_block()?;
+
+        if response.block_type == Kwp1281BlockType::AdaptationReply {
+            Ok(response.data)
+        } else {
+            Err(Error::new(
+                "Unexpected response to WriteAdaptation command.",
+            ))
+        }
     }
 }
 

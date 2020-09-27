@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{stdout, Write};
+use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -8,7 +9,7 @@ use colored::*;
 use docopt::Docopt;
 use env_logger;
 use log::{error, info, Level, LevelFilter};
-use serde::Deserialize;
+use serde::{de, Deserialize, Deserializer};
 
 mod can;
 mod diagnose;
@@ -31,10 +32,11 @@ use crate::obd2::*;
 const VERSION: &'static str = "v0.1";
 const USAGE: &'static str = "
 Usage:
-    rustbucket <protocol> read-dtcs [-v] [--bitrate=<bps>] [--pending]
-    rustbucket <protocol> clear-dtcs [-v] [--bitrate=<bps>]
-    rustbucket <protocol> read-data <pid> [-v] [-t [--log=<logfile>]] [--freeze-frame]
-    rustbucket <protocol> dump-data [-v] [-r] [--freeze-frame]
+    rustbucket <protocol> [--ecu=<ecu>] read-dtcs [-v] [--bitrate=<bps>] [--pending]
+    rustbucket <protocol> [--ecu=<ecu>] clear-dtcs [-v] [--bitrate=<bps>]
+    rustbucket <protocol> [--ecu=<ecu>] read-data <pid> [-v] [-t [--log=<logfile>]] [--freeze-frame]
+    rustbucket <protocol> [--ecu=<ecu>] dump-data [-v] [-r] [--freeze-frame]
+    rustbucket kwp1281 [--ecu=<ecu>] adaptation <pid> [<value>] [-v] [--test] [--bitrate=<bps>]
     rustbucket <protocol> simulator [-v] [--bitrate=<bps>]
     rustbucket test-hardware (tx|rx) [-v] [--bitrate=<bps>]
     rustbucket (-h | --help)
@@ -51,35 +53,121 @@ Commands:
     read-dtcs           Read Diagnostic Trouble Codes.
     clear-dtcs          Clear Diagnostic Trouble Codes.
     read-data           Read either current or freeze frame data for a given
-                            PID/group (either decimal or hex with 0x prefix).
-                            Freeze frame not supported on KWP1281.
+                            PID/group. Freeze frame not supported on KWP1281.
     dump-data           Enumerate through all data PIDs/groups, and dump it all
                             either formatted or in hex.
                             Freeze frame not supported on KWP1281.
+    adaptation          Read and optionally modify the adaptation values.
+                            If no new value is given, adaptation value is only
+                            read. If new value is given, the value is modified.
     simulator           Run a car simulater for testing.
     test-hardware       Test K line logic level conversion hardware by either
                             transmitting or receiving serial data continuously.
                             Good for hooking up an oscilloscope.
 
 Options:
-    --pending           Read pending DTCs instead of stored ones.
-                            (not supported by KWP1281)
+    -h --help           Show usage information.
+    --version           Show version.
+    -v --verbose        Show more output.
+    --ecu=<ecu>         ECU to initialize protocol with. Defaults to 0x01
+                            (engine control unit). Only for K line protocols.
+                            Proceed with caution for other units, especially
+                            airbag controllers.
     --bitrate=<bps>     Set baud/bit rate manually. For K line protocols this
                             will be determined automagically by default.
                             For the CAN bus, this defaults to 500,000.
+    --pending           Read pending DTCs instead of stored ones.
+                            (not supported by KWP1281)
     -t --tail           Keep requerying data.
     -l --log=<logfile>  Write floating point values to CSV file.
     --freeze-frame      Query data from freeze frame.
     -r --raw            Dump data in raw hex.
-    -v --verbose        Show more output.
-    -h --help           Show usage information.
-    --version           Show version.
+    --test              Write adaptation value in test mode.
+
+With the exception of the bitrate, all numerical arguments can be given both in
+    decimal and hex if prefixed with '0x'. Hex values should be zero-padded to
+    an even length.
 
 For more information on OBD2 PIDs, consult resources such as:
     https://en.wikipedia.org/wiki/OBD-II_PIDs#Service_01
 
 For KWP1281, group IDs and their meanings differ by ECU.
 ";
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct HexInput8 {
+    value: u8,
+}
+
+impl<'de> Deserialize<'de> for HexInput8 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+
+        let value = if s.len() >= 2 && &s[0..2] == "0x" {
+            if s.len() != 4 {
+                return Err(de::Error::custom("Unexpected hex input length."));
+            }
+
+            u8::from_str_radix(&s[2..4], 16).map_err(de::Error::custom)?
+        } else {
+            u8::from_str_radix(&s, 10).map_err(de::Error::custom)?
+        };
+
+        Ok(Self { value })
+    }
+}
+
+impl Deref for HexInput8 {
+    type Target = u8;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct HexInput16 {
+    value: u16,
+}
+
+impl<'de> Deserialize<'de> for HexInput16 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+
+        let value = if s.len() >= 2 && &s[0..2] == "0x" {
+            if s.len() != 4 && s.len() != 6 {
+                return Err(de::Error::custom("Unexpected hex input length."));
+            }
+
+            u16::from_str_radix(&s[2..4], 16).map_err(de::Error::custom)?
+                << 8 + u16::from_str_radix(&s[4..6], 16).map_err(de::Error::custom)?
+        } else {
+            u16::from_str_radix(&s, 10).map_err(de::Error::custom)?
+        };
+
+        Ok(Self { value })
+    }
+}
+
+impl Deref for HexInput16 {
+    type Target = u16;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl Into<[u8; 2]> for HexInput16 {
+    fn into(self) -> [u8; 2] {
+        [(self.value >> 8) as u8, (self.value & 0xff) as u8]
+    }
+}
 
 /// Enum of protocols for CLI arg parsing
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -97,19 +185,39 @@ struct Args {
     cmd_clear_dtcs: bool,
     cmd_read_data: bool,
     cmd_dump_data: bool,
+    cmd_adaptation: bool,
     cmd_simulator: bool,
     cmd_test_hardware: bool,
     cmd_tx: bool,
     cmd_rx: bool,
     arg_protocol: Option<Protocol>,
-    arg_pid: Option<String>,
+    arg_pid: Option<HexInput8>,
+    arg_value: Option<HexInput16>,
     flag_verbose: bool,
+    flag_ecu: Option<HexInput8>,
     flag_bitrate: Option<u64>,
     flag_pending: bool,
     flag_freeze_frame: bool,
     flag_tail: bool,
     flag_log: Option<String>,
     flag_raw: bool,
+    flag_test: bool,
+}
+
+fn init_kwp1281(args: &Args) -> Result<Kwp1281, Error> {
+    let address = args.flag_ecu.clone().map(|x| *x).unwrap_or(0x01);
+
+    if address == 0x15 {
+        if !confirm(format!("{}: Attempting to communicate with the airbag controller via KWP1281 may result in bricked hardware or deployed airbags. Are you sure you wish to proceed?", "CAUTION".bold().red()))? {
+            return Err(Error::new("Aborting."));
+        }
+
+        println!("Proceeding. No refunds!");
+    }
+
+    let kwp = Kwp1281::init(address, args.flag_bitrate)?;
+    info!("ECU data: {:?}", String::from_utf8_lossy(&kwp.ecu_data));
+    Ok(kwp)
 }
 
 fn init_protocol(args: &Args) -> Result<Box<dyn Diagnose>, Error> {
@@ -125,13 +233,10 @@ fn init_protocol(args: &Args) -> Result<Box<dyn Diagnose>, Error> {
             }
             Box::new(can)
         }
-        Some(Protocol::Kwp1281) => {
-            let kwp = Kwp1281::init(args.flag_bitrate)?;
-            info!("ECU data: {:?}", String::from_utf8_lossy(&kwp.ecu_data));
-            Box::new(kwp)
-        }
+        Some(Protocol::Kwp1281) => Box::new(init_kwp1281(args)?),
         Some(Protocol::Kwp2000) => {
-            let mut kwp = Kwp2000::init(args.flag_bitrate)?;
+            let address = args.flag_ecu.clone().map(|x| *x).unwrap_or(0x01);
+            let mut kwp = Kwp2000::init(address, args.flag_bitrate)?;
             info!(
                 "VIN: {:?}",
                 String::from_utf8_lossy(&kwp.obd_query(0x1a, &[0x90])?)
@@ -174,8 +279,7 @@ fn cmd_read_dtcs(args: Args) -> Result<(), Error> {
 
 fn cmd_clear_dtcs(args: Args) -> Result<(), Error> {
     if !confirm(format!("{}: Attempting to clear the DTCs may result in injury, fire, exploding airbags or death.\nNo warranty. Are you sure you wish to proceed?", "CAUTION".bold().red()))? {
-        println!("Aborting.");
-        return Ok(());
+        return Err(Error::new("Aborting."));
     }
 
     println!("Proceeding. No refunds!");
@@ -195,12 +299,7 @@ fn cmd_clear_dtcs(args: Args) -> Result<(), Error> {
 }
 
 fn cmd_read_data(args: Args) -> Result<(), Error> {
-    let pid = args.arg_pid.clone().unwrap();
-    let pid = if pid.len() >= 2 && &pid[0..2] == "0x" {
-        u8::from_str_radix(&pid[2..], 16)?
-    } else {
-        u8::from_str_radix(&pid, 10)?
-    };
+    let pid = *args.arg_pid.clone().unwrap();
 
     let mut protocol = init_protocol(&args)?;
 
@@ -311,6 +410,47 @@ fn cmd_dump_data(args: Args) -> Result<(), Error> {
     Ok(())
 }
 
+fn cmd_adaptation(args: Args) -> Result<(), Error> {
+    let pid = *args.arg_pid.clone().unwrap();
+    let value = args.arg_value.clone().map(|x| x.into());
+
+    if let Some(val) = value.as_ref() {
+        if !confirm(format!("{}: About to write adaptation value {:02x?}.\nNo warranty. Are you sure you wish to proceed?", "CAUTION".bold().red(), val))? {
+            return Err(Error::new("Aborting."));
+        }
+
+        println!("Proceeding. No refunds!");
+    }
+
+    let mut protocol = init_kwp1281(&args)?;
+
+    println!(
+        "\n{}: {:02x?}",
+        format!("Adaptation Value {} (0x{:02x})", pid, pid)
+            .green()
+            .bold(),
+        protocol.read_adaptation(pid)?
+    );
+
+    if let Some(val) = value {
+        println!();
+
+        protocol.write_adaptation(pid, &val, args.flag_test)?;
+
+        println!("\n{}\n", "Value written successfully.".green().bold());
+
+        println!(
+            "\n{}: {:02x?}",
+            format!("Adaptation Value {} (0x{:02x})", pid, pid)
+                .green()
+                .bold(),
+            protocol.read_adaptation(pid)?
+        );
+    }
+
+    Ok(())
+}
+
 fn cmd_simulator(args: Args) -> Result<(), Error> {
     match args.arg_protocol.unwrap() {
         Protocol::Can => CanBus::run_simulator(args.flag_bitrate.unwrap_or(500000)),
@@ -367,6 +507,8 @@ fn do_main() -> Result<(), Error> {
         cmd_read_data(args)
     } else if args.cmd_dump_data {
         cmd_dump_data(args)
+    } else if args.cmd_adaptation {
+        cmd_adaptation(args)
     } else if args.cmd_simulator {
         cmd_simulator(args)
     } else if args.cmd_test_hardware {

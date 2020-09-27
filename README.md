@@ -1,7 +1,7 @@
 rustbucket
 ==========
 
-Access your car's diagnostics (read Diagnostic Trouble Codes, clear DTCs, and read other diagnostic data) via the OBD2 connector with a BeagleBone Blue and Rust (and maybe some MOSFETs). This was inspired by [Marcelo Sacchetin's post about using the BeagleBone Blue's integrated CAN bus transceiver](https://medium.com/bugbountywriteup/car-hacking-with-python-part-1-data-exfiltration-gps-and-obdii-can-bus-69bc6b101fd1). If you want to read the diagnostics for older vehicles, things are a bit more complicated than that. For older VWs for instance, you will need to talk to the vehicle's K line using the KWP1281 protocol. This requires additional hardware to convert the BeagleBone's 3.3V logic level to 12V.
+Access your car's diagnostics via the OBD2 connector with a BeagleBone Blue and Rust (and maybe some MOSFETs). This was inspired by [Marcelo Sacchetin's post about using the BeagleBone Blue's integrated CAN bus transceiver](https://medium.com/bugbountywriteup/car-hacking-with-python-part-1-data-exfiltration-gps-and-obdii-can-bus-69bc6b101fd1). If you want to read the diagnostics for older vehicles, things are a bit more complicated than that. For older VWs for instance, you will need to talk to the vehicle's K line using the KWP1281 protocol. This requires additional hardware to convert the BeagleBone's 3.3V logic level to 12V.
 
 This was developed on/for the BeagleBone Blue, but the K & L line protocols should be just as usable on a BeagleBone Black. As far as I know, accessing the CAN bus on the Black requires the addition of a CAN transceiver.
 
@@ -13,7 +13,7 @@ This was developed on/for the BeagleBone Blue, but the K & L line protocols shou
 
 # Disclaimer
 
-Hooking stuff up to your vehicle's OBD2 connector can lead to anything from blown fuses to broken hardware. There are [reports online of attempting to communicate with certain VW airbag controllers via KWP1281 bricking them](https://www.ross-tech.com/vag-com/vw_issues.html) (which is why this project only communicates with the ECU itself at the moment). There are also apparently [instances of clearing the fault codes using KWP1281 leading to deployed airbags for certain errors](http://wiki.ross-tech.com/wiki/index.php/01217).
+Hooking stuff up to your vehicle's OBD2 connector can lead to anything from blown fuses to broken hardware. There are [reports online of attempting to communicate with certain VW airbag controllers via KWP1281 bricking them](https://www.ross-tech.com/vag-com/vw_issues.html). There are also apparently [instances of clearing the fault codes using KWP1281 leading to deployed airbags for certain errors](http://wiki.ross-tech.com/wiki/index.php/01217).
 
 I have tested the software and hardware described here successfully on some vehicles/ECUs (see below). However, **I cannot provide any guarantee that using this will not cause permanent damage to you or your vehicle. Proceed at your own risk. Also, don't fuck with airbags please.**
 
@@ -37,6 +37,14 @@ There are some more OBD2 protocols, that apparently are mostly used on American 
 Note that the above is my understanding, this whole field is a giant mess of standards and acronyms.
 
 While I don't have access to any vehicles that uses ISO 9141 or KWP2000, these should be fairly easy to finish, since the K line physical layer is already mostly implemented (except maybe some initialization modifications). If you need one of them and have a vehicle you'd be willing to test on, let me know, I'll gladly help with the implementation.
+
+# Features
+
+- Read Diagnostic Trouble Codes, stored and pending
+- Clear Diagnostic Trouble Codes
+- Read diagnostic data, current and from freeze frame
+- Log diagnostic data to CSV for plotting
+- Read and write adaptation values, e.g. to reset the service interval (KWP1281 only, no login functionality _yet_)
 
 # Tested Vehicles/ECUs
 
@@ -98,6 +106,7 @@ KiCAD project (schematic + PCB + Gerber files) can be found [here](https://githu
 
 - Marcelo Sacchetin's post on accessing the CAN Bus with the BeagleBone: https://medium.com/bugbountywriteup/car-hacking-with-python-part-1-data-exfiltration-gps-and-obdii-can-bus-69bc6b101fd1
 - Description of KWP1281 protocol (German): https://www.blafusel.de/obd/obd2_kw1281.html (The author mentions that the ECU will report at most 4 DTCs per message. I have received up to 7 DTCs in a single message. Not sure what the upper limit is.)
+- List of KWP1281 block titles/types: http://nefariousmotorsports.com/forum/index.php?PHPSESSID=r4ifc98vtsa66imq3rnvqtsul1&topic=8274.0title=
 - Description of KWP2000 initialization (German): https://www.blafusel.de/obd/vag_kw2000.html
 - List of vehicles and their protocol (does not differentiate between the K/KL line protocols): https://www.blafusel.de/obd/vag_compatibility.html
 - List of successfully scanned vehicles (German, user-reported and therefore unreliable, but extensive): https://www.blafusel.de/obd/obd2_scanned.php

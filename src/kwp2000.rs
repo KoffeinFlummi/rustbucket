@@ -8,9 +8,6 @@ use crate::error::*;
 use crate::kline::*;
 use crate::obd2::*;
 
-/// Address to talk to for initialization (0x01 = ECU)
-const INIT_ADDRESS: u8 = 0x01;
-
 /// Protocol for talking to the vehicle's K line via KWP2000.
 pub struct Kwp2000 {
     kline: KLine,
@@ -26,11 +23,11 @@ impl Kwp2000 {
      * Not implemented at the moment is fast init, and neither is
      * initialization of the L line.
      */
-    pub fn init(baud_rate: Option<u64>) -> Result<Self, Error> {
+    pub fn init(target_address: u8, baud_rate: Option<u64>) -> Result<Self, Error> {
         // TODO: fast init
         // TODO: write address to L line as well
 
-        let kline = KLine::init(baud_rate, INIT_ADDRESS)?;
+        let kline = KLine::init(target_address, baud_rate)?;
 
         let mut kwp = Self { kline };
 
@@ -48,7 +45,7 @@ impl Kwp2000 {
         kwp.kline.write_byte(0xff - kb2, false)?;
 
         // inverted address
-        if kwp.kline.read_byte(false)? != (0xff - INIT_ADDRESS) {
+        if kwp.kline.read_byte(false)? != (0xff - target_address) {
             return Err(Error::new("Unexpected address complement."));
         }
 

@@ -40,7 +40,7 @@ impl KLine {
      * neither is the initialization on the L line in parallel, as is
      * used optionally by ISO 9141, and KWP2000.
      */
-    pub fn init(baud_rate: Option<u64>, init_address: u8) -> Result<Self, Error> {
+    pub fn init(init_address: u8, baud_rate: Option<u64>) -> Result<Self, Error> {
         // Initialize communication manually, in GPIO mode
         let (tx, rx) = Self::initialize_gpio()?;
 
