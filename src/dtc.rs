@@ -134,6 +134,7 @@ impl DiagnosticData {
                 0x31 => (b as f32 / 4.0) * a as f32 * 0.1,
                 0x34 => b as f32 * 0.002 * a as f32 - a as f32,
                 0x36 => (((a as u16) << 8) + b as u16) as f32,
+                0x3b => (((a as u16) << 8) + b as u16) as f32 / 32768.0,
                 0x42 => a as f32 * b as f32 / 511.12,
                 _ => {
                     continue;
@@ -190,6 +191,7 @@ impl DiagnosticData {
                 0x31 => format!("{:7.2} mg/h ", (b as f32 / 4.0) * a as f32 * 0.1),
                 0x34 => format!("{:7.2} Nm ", b as f32 * 0.002 * a as f32 - a as f32),
                 0x36 => format!("{:5} ", ((a as u16) << 8) + b as u16),
+                0x3b => format!("{:5.3} ", (((a as u16) << 8) + b as u16) as f32 / 32768.0),
                 0x42 => format!("{:6.3} V ", a as f32 * b as f32 / 511.12),
                 _ => format!("{:02x?} ", chunk),
             })
