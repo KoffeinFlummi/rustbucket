@@ -116,7 +116,7 @@ impl KLine {
      * Determine the known baud rate closest to the one that was measured.
      */
     fn nearest_baud_rate(measured: u64) -> u64 {
-        let mut known: Vec<u64> = vec![9600, 10400];
+        let mut known: Vec<u64> = vec![1200, 2400, 4800, 9600, 10400];
         known.sort_by_key(|b| ((*b as i64) - (measured as i64)).abs());
         known[0]
     }
