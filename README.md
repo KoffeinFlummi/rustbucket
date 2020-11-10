@@ -30,13 +30,11 @@ I have tested the software and hardware described here successfully on some vehi
 | CAN Bus / ISO 15765 | CAN High & CAN Low | ✓           | Used by almost any modern vehicle. No additional hardware needed; The BB Blue's CAN transceiver can be connected directly to the OBD port's CAN lines. |
 | KWP1281             | K Line             | ✓           | Not an official OBD2 protocol, used on older VAG (VW & friends) cars. Returned codes are not official OBD2 DTCs. |
 | ISO 9141            | K & L Line         | ✗           | Apparently similar to KWP1281, but an official OBD2 protocol. Not implemented, but technically supported by hardware described below. |
-| KWP2000 / ISO 14230 | K & L Line         | (✓)         | Implemented at least partially (K line init only, no fast init). Initialization has been tested, but not actual OBD2 commands (see below). |
+| KWP2000 / ISO 14230 | K & L Line         | (✓)         | Implemented at least partially (K line init only, no fast init). OBD2 commands not implemented, but some VAG specific stuff has been tested (see below). |
 
 There are some more OBD2 protocols, that apparently are mostly used on American vehicles. I have not considered these, and the hardware required seems quite different.
 
 Note that the above is my understanding, this whole field is a giant mess of standards and acronyms.
-
-While I don't have access to any vehicles that uses ISO 9141 or KWP2000, these should be fairly easy to finish, since the K line physical layer is already mostly implemented (except maybe some initialization modifications). If you need one of them and have a vehicle you'd be willing to test on, let me know, I'll gladly help with the implementation.
 
 # Features
 
@@ -48,14 +46,14 @@ While I don't have access to any vehicles that uses ISO 9141 or KWP2000, these s
 
 # Tested Vehicles/ECUs
 
-| Vehicle/ECU                  | Protocol | Baud/Bit Rate | Notes |
-|------------------------------|----------|---------------|-------|
-| VW Golf Mk4 (1J), 2001       | KWP1281  | 10400         |       |
-| VW Golf Mk7 (AUV), 2014      | CAN      | 500000        | Most things work, but multi-frame messages (VIN, more than 2 DTCs) do not. Might require modifications to flow control messages. |
-| ~Renault Zoe (AGVYB0), 2015~ | CAN      | 500000        | CAN bus is active, but does not respond to OBD2 queries. I did not spend much time on this, might require some sort of initialization. |
-| Siemens SIMOS2.1B ECU        | KWP1281  | 9600          | [Pinout](https://wiki.obdtuning.de/images/9/99/VAG_Simos2.4.jpg) (also has a 500kbps CAN bus on pins 29 (L) & 31 (H), but this is not used for diagnostics and does not respond to OBD2 queries) |
-| Bosch EDC16U34 ECU           | CAN      | 500000        | [Pinout](http://diagprof.com/de/ecu_tipps_und_tricks/vag/motorelektronik/bosch/edc16u34) |
-| Bosch EDC16U34 ECU           | KWP2000  | 10400         | Initializes without L line, allows reading VIN, but does not respond to OBD2 queries. |
+| Vehicle/ECU                  | Protocol | Baud/Bit Rate   | Notes |
+|------------------------------|----------|-----------------|-------|
+| VW Golf Mk4 (1J), 2001       | KWP1281  | 10400,9600,1200 | All ECUs except ESP and airbag controller. See [script](https://github.com/KoffeinFlummi/rustbucket/blob/master/scan_golf_mk4.sh) and [sample output](https://github.com/KoffeinFlummi/rustbucket/blob/master/scan_golf_mk4_sample.out). |
+| VW Golf Mk4 (1J), 2001       | KWP2000  | 10400           | ESP Mk60 controller. Reading & clearing DTCs only. |
+| VW Golf Mk7 (AUV), 2014      | CAN      | 500000          | Most things work, but multi-frame messages (VIN, more than 2 DTCs) do not. Might require modifications to flow control messages. |
+| ~Renault Zoe (AGVYB0), 2015~ | CAN      | 500000          | CAN bus is active, but does not respond to OBD2 queries. I did not spend much time on this, might require some sort of initialization. |
+| Siemens SIMOS2.1B ECU        | KWP1281  | 9600            | [Pinout](https://wiki.obdtuning.de/images/9/99/VAG_Simos2.4.jpg) (also has a 500kbps CAN bus on pins 29 (L) & 31 (H), but this is not used for diagnostics and does not respond to OBD2 queries) |
+| Bosch EDC16U34 ECU           | CAN      | 500000          | [Pinout](http://diagprof.com/de/ecu_tipps_und_tricks/vag/motorelektronik/bosch/edc16u34) |
 
 # Compiling & Usage
 
