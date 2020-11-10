@@ -1,16 +1,23 @@
 //! Protocol implementation for KWP2000 / ISO 14230
 
 use std::num::Wrapping;
+use std::time::SystemTime;
 
 use log::debug;
 
+use crate::diagnose::*;
 use crate::error::*;
 use crate::kline::*;
-use crate::obd2::*;
+use crate::misc::*;
+
+/// Delay between ECU response and next tester request (P4)
+const BLOCK_DELAY_MICROS: u64 = 60_000;
 
 /// Protocol for talking to the vehicle's K line via KWP2000.
 pub struct Kwp2000 {
     kline: KLine,
+    physical_address: u8,
+    block_delay: u64,
 }
 
 impl Kwp2000 {
@@ -23,44 +30,68 @@ impl Kwp2000 {
      * Not implemented at the moment is fast init, and neither is
      * initialization of the L line.
      */
-    pub fn init(target_address: u8, baud_rate: Option<u64>) -> Result<Self, Error> {
-        // TODO: fast init
+    pub fn init(target_address: u8, baud_rate: Option<u64>, physical_address: Option<u8>) -> Result<Self, Error> {
+        // TODO: fast init?
         // TODO: write address to L line as well
 
-        let kline = KLine::init(target_address, baud_rate)?;
+        // The physical address used for addressing KWP2000 blocks differ from
+        // the 5-baud init addresses. See appendix B of ISO 14230-2.
+        let physical_address = physical_address.unwrap_or(match target_address {
+            0x01 => 0x10, // ECU
+            0x02 => 0x18, // transmission
+            0x03 => 0x28, // brakes
+            _ => {
+                return Err(Error::new("Could not guess phsyical address, please set one manually."));
+            }
+        });
 
-        let mut kwp = Self { kline };
+        let kline = KLine::init(target_address, baud_rate)?;
+        let mut kwp = Self {
+            kline,
+            physical_address,
+            block_delay: BLOCK_DELAY_MICROS,
+        };
 
         let kb1 = kwp.kline.read_byte(false)?;
         let kb2 = kwp.kline.read_byte(false)?;
+        debug!("Key Bytes: {:02x?} {:02x?}", kb1, kb2);
 
-        // The key bytes are actually sent as 7O1, so we'll have to remove the
-        // parity bit manually
-        let protocol_id = (((kb2 & 0x7f) as u16) << 7) + ((kb1 & 0x7f) as u16);
-        if protocol_id != 2031 {
+        if kb2 != 0x8f {
             return Err(Error::new("Unexpected protocol identifier."));
         }
 
-        // parity bit?
+        // TODO: check/parse KB2
+
         kwp.kline.write_byte(0xff - kb2, false)?;
 
         // inverted address
-        if kwp.kline.read_byte(false)? != (0xff - target_address) {
+        let byte = kwp.kline.read_byte(false)?;
+        debug!("Address Complement: {:02x?}", byte);
+        if (byte & 0x7f) != (0x7f - target_address) {
             return Err(Error::new("Unexpected address complement."));
         }
 
+        // TODO: read timing parameters?
+
         // Start diagnostic session. The 0x89 parameter might be manufacturer
         // specific and will have to be modified.
-        kwp.obd_query(0x10, &[0x89])?;
+        kwp.write_block(0x80, physical_address, &[0x10, 0x89])?;
+        kwp.read_block()?; // TODO: check this
 
         Ok(kwp)
     }
 
     /**
      * Write a data block to the K line via KWP2000.
+     *
+     * Data length is added to format byte, which should be 0x80, or 0xc0 for
+     * diagnostic requests. Target address should be 0x33 for diagnostic
+     * requests. Source address is always 0xf1 as per ISO 15031-5.
      */
-    fn write_block(&mut self, data: &[u8]) -> Result<(), Error> {
-        let mut msg: Vec<u8> = vec![0x80 + data.len() as u8, 0x10, 0xf1];
+    fn write_block(&mut self, format: u8, target: u8, data: &[u8]) -> Result<(), Error> {
+        busy_wait(SystemTime::now(), self.block_delay);
+
+        let mut msg: Vec<u8> = vec![format + data.len() as u8, target, 0xf1];
         msg.extend(data);
 
         let crc: Wrapping<u8> = msg.iter().map(|x| Wrapping(*x)).sum();
@@ -76,7 +107,8 @@ impl Kwp2000 {
     }
 
     /**
-     * Read a data block from the K line via KWP2000.
+     * Read a data block from the K line via KWP2000, returning just the data
+     * bytes, without format and source/target addresses.
      */
     fn read_block(&mut self) -> Result<Vec<u8>, Error> {
         let header = self.kline.read_byte(false)?;
@@ -106,29 +138,50 @@ impl Kwp2000 {
     }
 }
 
-impl Obd2Protocol for Kwp2000 {
-    fn obd_query(&mut self, service: u8, args: &[u8]) -> Result<Vec<u8>, Error> {
-        let mut msg: Vec<u8> = vec![service];
-        msg.extend(args);
+impl Diagnose for Kwp2000 {
+    fn read_dtcs(&mut self, _pending: bool) -> Result<Vec<DiagnosticTroubleCode>, Error> {
+        self.write_block(0x80, self.physical_address, &[0x18, 0x02, 0xff, 0x00])?;
 
-        self.write_block(&msg)?;
+        let data = self.read_block()?;
 
-        let response = self.read_block()?;
-
-        if response[0] == 0x7f {
-            return Err(Error::new(
-                "ECU returned error code. Query may not be supported.",
-            ));
+        if data[0] != 0x58 {
+            return Err(Error::new("Unexpected response to readDiagnosticTroubleCodesByStatus command."));
         }
 
-        if response[0] != service + 0x40 {
-            return Err(Error::new("Service identifier of response did not match."));
+        let mut dtcs = Vec::with_capacity(data[1] as usize);
+        for chunk in data[2..].chunks(3) {
+            let code = ((chunk[0] as u16) << 8) + (chunk[1] as u16);
+            let status = chunk[2];
+            dtcs.push(DiagnosticTroubleCode::Oem(code, status));
         }
 
-        if &response[1..(1 + args.len())] != args {
-            return Err(Error::new("Arguments/PIDs did not match."));
+        return Ok(dtcs);
+    }
+
+    fn clear_dtcs(&mut self) -> Result<(), Error> {
+        self.write_block(0x80, self.physical_address, &[0x14, 0xff, 0x00])?;
+
+        let mut data = self.read_block()?;
+
+        // For some reason, the Mk60 ESP controller I tested with first returns
+        // an error, and then a positive reply immediately afterwards.
+        // http://nefariousmotorsports.com/forum/index.php?topic=3946.0title=
+        if data[0] == 0x7f {
+            // If ECU returns another block, use that. If read times out, use
+            // the original data for error code.
+            if let Ok(d) = self.read_block() {
+                data = d;
+            }
         }
 
-        Ok(response[(1 + args.len())..].to_vec())
+        if data[0] == 0x54 {
+            Ok(())
+        } else {
+            Err(Error::new("Unexpected response to clearDiagnosticInformation command."))
+        }
+    }
+
+    fn read_data(&mut self, _pid: u8, _freeze_frame: bool) -> Result<DiagnosticData, Error> {
+        todo!();
     }
 }

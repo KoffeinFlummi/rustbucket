@@ -32,10 +32,10 @@ use crate::obd2::*;
 const VERSION: &'static str = "v0.1";
 const USAGE: &'static str = "
 Usage:
-    rustbucket <protocol> [--ecu=<ecu>] read-dtcs [-v] [--bitrate=<bps>] [--pending]
-    rustbucket <protocol> [--ecu=<ecu>] clear-dtcs [-v] [--bitrate=<bps>]
-    rustbucket <protocol> [--ecu=<ecu>] read-data <pid> [-v] [-t [--log=<logfile>]] [--freeze-frame]
-    rustbucket <protocol> [--ecu=<ecu>] dump-data [-v] [-r] [--freeze-frame]
+    rustbucket <protocol> [--ecu=<ecu>] [--phys=<addr>] read-dtcs [-v] [--bitrate=<bps>] [--pending]
+    rustbucket <protocol> [--ecu=<ecu>] [--phys=<addr>] clear-dtcs [-v] [--bitrate=<bps>]
+    rustbucket <protocol> [--ecu=<ecu>] [--phys=<addr>] read-data <pid> [-v] [-t [--log=<logfile>]] [--freeze-frame]
+    rustbucket <protocol> [--ecu=<ecu>] [--phys=<addr>] dump-data [-v] [-r] [--freeze-frame]
     rustbucket kwp1281 [--ecu=<ecu>] adaptation <pid> [<value>] [-v] [--test] [--bitrate=<bps>]
     rustbucket <protocol> simulator [-v] [--bitrate=<bps>]
     rustbucket test-hardware (tx|rx) [-v] [--bitrate=<bps>]
@@ -73,6 +73,8 @@ Options:
                             (engine control unit). Only for K line protocols.
                             Proceed with caution for other units, especially
                             airbag controllers.
+    --phys=<addr>       Physical address to use for KWP2000 protocol. This is
+                            manufacturer specific. Good luck.
     --bitrate=<bps>     Set baud/bit rate manually. For K line protocols this
                             will be determined automagically by default.
                             For the CAN bus, this defaults to 500,000.
@@ -195,6 +197,7 @@ struct Args {
     arg_value: Option<HexInput16>,
     flag_verbose: bool,
     flag_ecu: Option<HexInput8>,
+    flag_phys: Option<HexInput8>,
     flag_bitrate: Option<u64>,
     flag_pending: bool,
     flag_freeze_frame: bool,
@@ -236,11 +239,8 @@ fn init_protocol(args: &Args) -> Result<Box<dyn Diagnose>, Error> {
         Some(Protocol::Kwp1281) => Box::new(init_kwp1281(args)?),
         Some(Protocol::Kwp2000) => {
             let address = args.flag_ecu.clone().map(|x| *x).unwrap_or(0x01);
-            let mut kwp = Kwp2000::init(address, args.flag_bitrate)?;
-            info!(
-                "VIN: {:?}",
-                String::from_utf8_lossy(&kwp.obd_query(0x1a, &[0x90])?)
-            );
+            let kwp = Kwp2000::init(address, args.flag_bitrate, args.flag_phys.clone().map(|x| *x))?;
+            // TODO: read identification?
             Box::new(kwp)
         }
         _ => unimplemented!(),
