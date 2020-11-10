@@ -43,6 +43,7 @@ Note that the above is my understanding, this whole field is a giant mess of sta
 - Read diagnostic data, current and from freeze frame
 - Log diagnostic data to CSV for plotting
 - Read and write adaptation values, e.g. to reset the service interval (KWP1281 only, no login functionality _yet_)
+- Perform basic settings, such as throttle body alignments (KWP1281 only)
 
 # Tested Vehicles/ECUs
 

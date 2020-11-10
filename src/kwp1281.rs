@@ -19,8 +19,9 @@ enum Kwp1281BlockType {
     Quit,
     GetDtcs,
     Ack,
-    ReadData,
-    DataReply,
+    BasicSettingGroup,
+    ReadDataGroup,
+    DataGroupReply,
     Ascii,
     ReadAdaptation,
     TestAdaptation,
@@ -36,8 +37,9 @@ impl From<u8> for Kwp1281BlockType {
             0x06 => Self::Quit,
             0x07 => Self::GetDtcs,
             0x09 => Self::Ack,
-            0x29 => Self::ReadData,
-            0xe7 => Self::DataReply,
+            0x28 => Self::BasicSettingGroup,
+            0x29 => Self::ReadDataGroup,
+            0xe7 => Self::DataGroupReply,
             0xf6 => Self::Ascii,
             0x21 => Self::ReadAdaptation,
             0x22 => Self::TestAdaptation,
@@ -55,8 +57,9 @@ impl Into<u8> for Kwp1281BlockType {
             Self::Quit => 0x06,
             Self::GetDtcs => 0x07,
             Self::Ack => 0x09,
-            Self::ReadData => 0x29,
-            Self::DataReply => 0xe7,
+            Self::BasicSettingGroup => 0x28,
+            Self::ReadDataGroup => 0x29,
+            Self::DataGroupReply => 0xe7,
             Self::Ascii => 0xf6,
             Self::ReadAdaptation => 0x21,
             Self::TestAdaptation => 0x22,
@@ -352,6 +355,25 @@ impl Kwp1281 {
             ))
         }
     }
+
+    /**
+     * Perform basic setting. Command should be repeated until ECU indicates
+     * success. How exactly it does that is manufacturer specific.
+     */
+    pub fn perform_basic_setting(&mut self, pid: u8) -> Result<DiagnosticData, Error> {
+        self.write_block(Kwp1281Block {
+            block_type: Kwp1281BlockType::BasicSettingGroup,
+            data: vec![pid],
+        })?;
+
+        let response = self.read_block()?;
+
+        if response.block_type == Kwp1281BlockType::DataGroupReply {
+            Ok(DiagnosticData::from_kwp1281_data(pid, response.data))
+        } else {
+            Err(Error::new("Unexpected response to BasicSetting command."))
+        }
+    }
 }
 
 impl Diagnose for Kwp1281 {
@@ -406,13 +428,13 @@ impl Diagnose for Kwp1281 {
         }
 
         self.write_block(Kwp1281Block {
-            block_type: Kwp1281BlockType::ReadData,
+            block_type: Kwp1281BlockType::ReadDataGroup,
             data: vec![pid],
         })?;
 
         let response = self.read_block()?;
 
-        if response.block_type == Kwp1281BlockType::DataReply {
+        if response.block_type == Kwp1281BlockType::DataGroupReply {
             Ok(DiagnosticData::from_kwp1281_data(pid, response.data))
         } else {
             Err(Error::new("Unexpected response to ReadData command."))

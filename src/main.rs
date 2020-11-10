@@ -37,6 +37,7 @@ Usage:
     rustbucket <protocol> [--ecu=<ecu>] [--phys=<addr>] read-data <pid> [-v] [-t [--log=<logfile>]] [--freeze-frame]
     rustbucket <protocol> [--ecu=<ecu>] [--phys=<addr>] dump-data [-v] [-r] [--freeze-frame]
     rustbucket kwp1281 [--ecu=<ecu>] adaptation <pid> [<value>] [-v] [--test] [--bitrate=<bps>]
+    rustbucket kwp1281 [--ecu=<ecu>] basic-setting <pid> [-v] [--bitrate=<bps>]
     rustbucket <protocol> simulator [-v] [--bitrate=<bps>]
     rustbucket test-hardware (tx|rx) [-v] [--bitrate=<bps>]
     rustbucket (-h | --help)
@@ -60,6 +61,8 @@ Commands:
     adaptation          Read and optionally modify the adaptation values.
                             If no new value is given, adaptation value is only
                             read. If new value is given, the value is modified.
+    basic-setting       Perform a basic setting for the given group. Keeps
+                            watching data group after basic setting command.
     simulator           Run a car simulater for testing.
     test-hardware       Test K line logic level conversion hardware by either
                             transmitting or receiving serial data continuously.
@@ -188,6 +191,7 @@ struct Args {
     cmd_read_data: bool,
     cmd_dump_data: bool,
     cmd_adaptation: bool,
+    cmd_basic_setting: bool,
     cmd_simulator: bool,
     cmd_test_hardware: bool,
     cmd_tx: bool,
@@ -451,6 +455,56 @@ fn cmd_adaptation(args: Args) -> Result<(), Error> {
     Ok(())
 }
 
+fn cmd_basic_setting(args: Args) -> Result<(), Error> {
+    let pid = *args.arg_pid.clone().unwrap();
+
+    if !confirm(format!("{}: Performing basic settings such as throttle body alignments can cause permanent damage to your vehicle, especially if performed incorrectly. No warranty. Make sure you know what you're doing and keep the process running until the ECU indicates success. Proceed?", "CAUTION".bold().red()))? {
+        return Err(Error::new("Aborting."));
+    }
+
+    println!("Proceeding. No refunds!");
+
+    let mut protocol = init_kwp1281(&args)?;
+
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .unwrap();
+
+    println!("");
+
+    loop {
+        let data = protocol.perform_basic_setting(pid)?;
+
+        print!("\r{}: {}",
+            format!("Group {} (0x{:02x})", pid, pid).green().bold(),
+            data
+        );
+
+        // Since -v makes protocols print data, staying on the same line
+        // doesn't work anyways, and sometimes it may be desirable to see
+        // previous readings.
+        if args.flag_verbose {
+            println!("");
+        }
+
+        stdout().flush()?;
+
+        if !running.load(Ordering::SeqCst) {
+            break;
+        }
+    }
+
+    if !args.flag_verbose {
+        println!("");
+    }
+
+    Ok(())
+}
+
 fn cmd_simulator(args: Args) -> Result<(), Error> {
     match args.arg_protocol.unwrap() {
         Protocol::Can => CanBus::run_simulator(args.flag_bitrate.unwrap_or(500000)),
@@ -509,6 +563,8 @@ fn do_main() -> Result<(), Error> {
         cmd_dump_data(args)
     } else if args.cmd_adaptation {
         cmd_adaptation(args)
+    } else if args.cmd_basic_setting {
+        cmd_basic_setting(args)
     } else if args.cmd_simulator {
         cmd_simulator(args)
     } else if args.cmd_test_hardware {
