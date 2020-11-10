@@ -116,16 +116,15 @@ impl Kwp1281 {
         // Because of the UART setup time, we might miss the first byte, 0x01
         // and only receive the second one, 0x8a. Because of this we have to
         // complement this one manually.
-        let mut byte = kwp.kline.read_byte(false)?;
-        if byte == 0x01 {
-            byte = kwp.kline.read_byte(false)?;
-        }
+        let kb1 = kwp.kline.read_byte(false)?;
+        let kb2 = kwp.kline.read_byte(false)?;
+        debug!("Key Bytes: {:02x?} {:02x?}", kb1, kb2);
 
-        if byte != 0x8a {
+        if kb1 != 0x01 || kb2 != 0x8a {
             return Err(Error::new("Unexpected key byte."));
         }
 
-        kwp.kline.write_byte(0xff - byte, false)?;
+        kwp.kline.write_byte(0xff - kb2, false)?;
 
         // Initialization is over, ECU will now send some data about itself.
         // We will have to wait for that to finish while ACKing blocks.
