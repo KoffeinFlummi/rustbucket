@@ -521,6 +521,11 @@ fn do_main() -> Result<(), Error> {
 fn main() {
     if let Err(e) = do_main() {
         error!("{}", e);
+
+        // Reset pin modes
+        set_pin_mode(9, 24, PinMode::Uart).unwrap();
+        set_pin_mode(9, 26, PinMode::Uart).unwrap();
+
         std::process::exit(1);
     }
 }
