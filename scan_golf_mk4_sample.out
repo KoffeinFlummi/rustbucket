@@ -1,0 +1,179 @@
+# ECU 0x01: Engine
+info: Measured baud rate: 10638
+info: Using nearest known baud rate: 10400
+debug: Key Bytes: 01 8a
+debug: RECV f6 [b0, 36, 41, 39, 30, 36, 30, 33, 33, 41, 4a, 20]
+debug: SEND 09 []
+debug: RECV f6 [53, 49, 4d, 4f, 53, 33, 33, 20, 31, 2e, 36, 6c]
+debug: SEND 09 []
+debug: RECV f6 [20, 32, 56, 20, 30, 30, 41, 54, 34, 30, 38, 30]
+debug: SEND 09 []
+debug: RECV f6 [00, 01, d2, 00, 2e]
+debug: SEND 09 []
+debug: RECV 09 []
+info: ECU data: "�6A906033AJ SIMOS33 1.6l 2V 00AT4080\u{0}\u{1}�\u{0}."
+debug: SEND 07 []
+debug: RECV fc [40, ab, 23]
+debug: SEND 09 []
+debug: RECV 09 []
+
+DTC #1: OEM (VAG) Code 16555 (0x40ab, third byte: 0x23)
+    further resources:
+      - http://wiki.ross-tech.com/wiki/index.php?search=16555
+
+# ECU 0x02: Transmission
+info: Measured baud rate: 1204
+info: Using nearest known baud rate: 1200
+debug: Key Bytes: 01 8a
+debug: RECV f6 [30, 31, 4d, 39, 32, 37, 37, 33, 33, 4a, 48, 20]
+debug: SEND 09 []
+debug: RECV f6 [41, 47, 34, 20, 47, 65, 74, 72, 69, 65, 62, 65]
+debug: SEND 09 []
+debug: RECV f6 [20, 30, 31, 4d, 20, 20, 20, 20, 34, 38, 33, 30]
+debug: SEND 09 []
+debug: RECV f6 [00, 00, 00, 2e]
+debug: SEND 09 []
+debug: RECV f6 [44, 69, 61, 67, 6e, 6f, 73, 65, 20, 56, 57, 20]
+debug: SEND 09 []
+debug: RECV 09 []
+info: ECU data: "01M927733JH AG4 Getriebe 01M    4830\u{0}\u{0}\u{0}.Diagnose VW "
+debug: SEND 07 []
+debug: RECV fc [ff, ff, 88]
+
+No DTCs.
+
+# ECU 0x03: Brakes (ASP/ESP)
+info: Measured baud rate: 10638
+info: Using nearest known baud rate: 10400
+debug: Key Bytes: 6b 8f
+debug: Address Complement: 7c
+debug: SEND [82, 28, f1, 10, 89, 34]
+debug: RECV [82, f1, 28, 50, 89, 74]
+debug: SEND [84, 28, f1, 18, 02, ff, 00, b6]
+debug: RECV [82, f1, 28, 58, 00, f3]
+
+No DTCs.
+
+# ECU 0x08: HVAC
+info: Measured baud rate: 10638
+info: Using nearest known baud rate: 10400
+debug: Key Bytes: 01 8a
+debug: RECV f6 [33, 42, 31, 39, 30, 37, 30, 34, 34, 43, 20, 20]
+debug: SEND 09 []
+debug: RECV f6 [43, 4c, 49, 4d, 41, 54, 52, 4f, 4e, 49, 43, 20]
+debug: SEND 09 []
+debug: RECV f6 [20, 20, 20, 20, 43, 20, 32, 2e, 30, 2e, 30]
+debug: SEND 09 []
+debug: RECV f6 [00, 56, 04, 00, 2e]
+debug: SEND 09 []
+debug: RECV 09 []
+info: ECU data: "3B1907044C  CLIMATRONIC     C 2.0.0\u{0}V\u{4}\u{0}."
+debug: SEND 07 []
+debug: RECV fc [04, f7, a5]
+debug: SEND 09 []
+debug: RECV 09 []
+
+DTC #1: OEM (VAG) Code 01271 (0x04f7, third byte: 0xa5)
+    further resources:
+      - http://wiki.ross-tech.com/wiki/index.php?search=01271
+
+# ECU 0x17: Instrument Cluster
+info: Measured baud rate: 10638
+info: Using nearest known baud rate: 10400
+debug: Key Bytes: 01 8a
+debug: RECV f6 [b1, 4a, 30, 39, 32, 30, 38, 30, 36, 43, 20, 20]
+debug: SEND 09 []
+debug: RECV f6 [4b, 4f, 4d, 42, 49, 2b, 57, 45, 47, 46, 41, 48]
+debug: SEND 09 []
+debug: RECV f6 [52, 53, 50, 20, 56, 44, 4f, 20, 56, 30, 32]
+debug: SEND 09 []
+debug: RECV f6 [00, 27, f0, 00, 2e]
+debug: SEND 09 []
+debug: RECV 09 []
+info: ECU data: "�J0920806C  KOMBI+WEGFAHRSP VDO V02\u{0}\'�\u{0}."
+debug: SEND 07 []
+debug: RECV fc [ff, ff, 88]
+
+No DTCs.
+
+# ECU 0x19: CAN Gateway
+info: Measured baud rate: 10638
+info: Using nearest known baud rate: 10400
+debug: Key Bytes: 01 8a
+debug: RECV f6 [36, 4e, 30, 39, 30, 39, 39, 30, 31, 20, 20, 20]
+debug: SEND 09 []
+debug: RECV f6 [47, 61, 74, 65, 77, 61, 79, 20, 4b, 3c, 2d, 3e]
+debug: SEND 09 []
+debug: RECV f6 [43, 41, 4e, 20, 20, 20, 20, 30, 30, 30, 31]
+debug: SEND 09 []
+debug: RECV f6 [00, 00, 0c, 00, 2e]
+debug: SEND 09 []
+debug: RECV 09 []
+info: ECU data: "6N0909901   Gateway K<->CAN    0001\u{0}\u{0}\u{c}\u{0}."
+debug: SEND 07 []
+debug: RECV fc [ff, ff, 88]
+
+No DTCs.
+
+# ECU 0x46: Central Convenience
+info: Measured baud rate: 9803
+info: Using nearest known baud rate: 9600
+debug: Key Bytes: 01 8a
+debug: RECV f6 [b1, 43, 30, 39, 35, 39, 37, 39, 39, 20, 20, 20]
+debug: SEND 09 []
+debug: RECV f6 [31, 4b, 20, 4b, 6f, 6d, 66, 6f, 72, 74, 67, 65]
+debug: SEND 09 []
+debug: RECV f6 [72, e1, 74, 20, 48, 4c, 4f, 20, 30, 30, 30, 31]
+debug: SEND 09 []
+debug: RECV f6 [00, 02, 06, 00, 2e]
+debug: SEND 09 []
+debug: RECV 09 []
+info: ECU data: "�C0959799   1K Komfortger�t HLO 0001\u{0}\u{2}\u{6}\u{0}."
+debug: SEND 07 []
+debug: RECV fc [ff, ff, 88]
+
+No DTCs.
+
+# ECU 0x56: Radio
+info: Measured baud rate: 9900
+info: Using nearest known baud rate: 9600
+debug: Key Bytes: 01 8a
+debug: RECV f6 [31, 4a, 30, 30, 33, 35, 31, 35, 32, 45, 20, 20]
+debug: SEND 09 []
+debug: RECV f6 [20, 52, 61, 64, 69, 6f, 20, 47, 52, 4f, 20, 20]
+debug: SEND 09 []
+debug: RECV f6 [20, 20, 20, 20, 20, 20, 20, 30, 30, 30, 31, 20]
+debug: SEND 09 []
+debug: RECV f6 [00, 00, 02, 00, 2e]
+debug: SEND 09 []
+debug: RECV 09 []
+info: ECU data: "1J0035152E   Radio GRO         0001 \u{0}\u{0}\u{2}\u{0}."
+debug: SEND 07 []
+debug: RECV fc [03, 58, a4]
+debug: SEND 09 []
+debug: RECV 09 []
+
+DTC #1: OEM (VAG) Code 00856 (0x0358, third byte: 0xa4)
+    further resources:
+      - http://wiki.ross-tech.com/wiki/index.php?search=00856
+
+# ECU 0x76: Parking Aid
+error: Timed out waiting for edge.
+Failed, retrying after wait.
+info: Measured baud rate: 10526
+info: Using nearest known baud rate: 10400
+debug: Key Bytes: 01 8a
+debug: RECV f6 [31, 4a, 30, 39, 31, 39, 32, 38, 33, 41, 20, 20]
+debug: SEND 09 []
+debug: RECV f6 [45, 69, 6e, 70, 61, 72, 6b, 68, 69, 6c, 66, 65]
+debug: SEND 09 []
+debug: RECV f6 [20, 20, 20, 20, 20, 20, 20, 20, 30, 30, 30, 31]
+debug: SEND 09 []
+debug: RECV f6 [00, 08, 9e, 00, 2e]
+debug: SEND 09 []
+debug: RECV 09 []
+info: ECU data: "1J0919283A  Einparkhilfe        0001\u{0}\u{8}�\u{0}."
+debug: SEND 07 []
+debug: RECV fc [ff, ff, 88]
+
+No DTCs.
