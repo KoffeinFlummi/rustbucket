@@ -105,7 +105,7 @@ KiCAD project (schematic + PCB + Gerber files) can be found [here](https://githu
 
 - Marcelo Sacchetin's post on accessing the CAN Bus with the BeagleBone: https://medium.com/bugbountywriteup/car-hacking-with-python-part-1-data-exfiltration-gps-and-obdii-can-bus-69bc6b101fd1
 - Description of KWP1281 protocol (German): https://www.blafusel.de/obd/obd2_kw1281.html (The author mentions that the ECU will report at most 4 DTCs per message. I have received up to 7 DTCs in a single message. Not sure what the upper limit is.)
-- List of KWP1281 block titles/types: http://nefariousmotorsports.com/forum/index.php?PHPSESSID=r4ifc98vtsa66imq3rnvqtsul1&topic=8274.0title=
+- List of KWP1281 block titles/types: http://nefariousmotorsports.com/forum/index.php?topic=8274.0title=
 - Description of KWP2000 initialization (German): https://www.blafusel.de/obd/vag_kw2000.html
 - List of vehicles and their protocol (does not differentiate between the K/KL line protocols): https://www.blafusel.de/obd/vag_compatibility.html
 - List of successfully scanned vehicles (German, user-reported and therefore unreliable, but extensive): https://www.blafusel.de/obd/obd2_scanned.php
