@@ -42,7 +42,7 @@ debug: RECV fc [ff, ff, 88]
 
 No DTCs.
 
-# ECU 0x03: Brakes (ASP/ESP)
+# ECU 0x03: Brakes (ASB/ESP)
 info: Measured baud rate: 10638
 info: Using nearest known baud rate: 10400
 debug: Key Bytes: 6b 8f

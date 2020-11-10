@@ -17,7 +17,7 @@ normal=$(tput sgr0)
 declare -A ecus
 ecus[0x01]="Engine"
 ecus[0x02]="Transmission"
-ecus[0x03]="Brakes (ASP/ESP)"
+ecus[0x03]="Brakes (ASB/ESP)"
 ecus[0x08]="HVAC"
 ecus[0x17]="Instrument Cluster"
 ecus[0x19]="CAN Gateway"
